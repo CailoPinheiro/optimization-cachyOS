@@ -169,7 +169,43 @@ Recarregue o Hyprland imediatamente com:
 hyprctl reload
 ```
 
-## 4 - Argumentos Steam
+## 4 - Raw Input e Layout de Teclado (Hyprland)
+
+Para quem utiliza dotfiles modulares no Hyprland (como o Hyprdots), o arquivo `userprefs.conf` é o local onde as configurações pessoais sobrepõem os padrões do sistema. Garantir que a aceleração do mouse esteja desligada no nível do compositor (Raw Input) é vital para não sabotar sua memória muscular em jogos competitivos.
+
+**1. Editar o arquivo de preferências do Hyprland:**
+
+O arquivo geralmente fica na sua pasta de configurações:
+
+```
+nano ~/.config/hypr/userprefs.conf
+```
+
+*(Se você não usar dotfiles modulares, basta procurar o bloco `input` diretamente no seu `~/.config/hypr/hyprland.conf`).*
+
+**2. Adicionar as regras de Input:**
+
+Procure pelo bloco `input { ... }` (ou crie a estrutura) e adicione as seguintes linhas:
+
+```
+input {
+    kb_layout = us, br
+    force_no_accel = 0
+    accel_profile = flat
+}
+```
+
+Salve e recarregue o Hyprland imediatamente com `hyprctl reload`.
+
+**Legenda:**
+
+- **`kb_layout = us, br`:** Define e mantém o suporte para alternar entre o layout americano e o brasileiro no seu teclado.
+
+- **`accel_profile = flat`:** É a chave mestra para jogar. O perfil "flat" ativa o "Raw Input" no Wayland. Ele garante que o movimento do ponteiro na tela seja 1:1 com o movimento físico do seu mouse (DPI puro), sem que o sistema tente "adivinhar" e acelerar o cursor em movimentos rápidos.
+
+- **`force_no_accel = 0`:** Em muitas configurações do Hyprland, funciona em conjunto com o `flat` para garantir que nenhuma camada legada de aceleração interfira na leitura bruta do sensor do mouse.
+
+## 5 - Argumentos Steam
 
 **Nas Propriedades do Overwatch 2, cole exatamente esta linha em "Opções de inicialização":**
 
@@ -192,7 +228,7 @@ DXVK_LOG_LEVEL=none DXVK_STATE_CACHE=1 DXVK_HUD=shaders,compiler MESA_DISK_CACHE
 - **`MESA_GLTHREAD=1`** → Descarrega o processamento gráfico para múltiplas threads da CPU, aliviando o núcleo principal.
   
 
-## Alternativa com o Daemon Padrão do CachyOS
+## 6- Alternativa com o Daemon Padrão do CachyOS
 
 Caso prefira não utilizar o script customizado `power-control` e queira manter o sistema 100% original, você pode extrair a performance máxima utilizando o gerenciador de energia nativo do CachyOS.
 
