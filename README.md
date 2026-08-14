@@ -200,10 +200,11 @@ Salve e recarregue o Hyprland imediatamente com `hyprctl reload`.
 **Legenda:**
 
 - **`kb_layout = us, br`:** Define e mantém o suporte para alternar entre o layout americano e o brasileiro no seu teclado.
-
+  
 - **`accel_profile = flat`:** É a chave mestra para jogar. O perfil "flat" ativa o "Raw Input" no Wayland. Ele garante que o movimento do ponteiro na tela seja 1:1 com o movimento físico do seu mouse (DPI puro), sem que o sistema tente "adivinhar" e acelerar o cursor em movimentos rápidos.
-
+  
 - **`force_no_accel = 0`:** Em muitas configurações do Hyprland, funciona em conjunto com o `flat` para garantir que nenhuma camada legada de aceleração interfira na leitura bruta do sensor do mouse.
+  
 
 ## 5 - Argumentos Steam
 
@@ -228,7 +229,89 @@ DXVK_LOG_LEVEL=none DXVK_STATE_CACHE=1 DXVK_HUD=shaders,compiler MESA_DISK_CACHE
 - **`MESA_GLTHREAD=1`** → Descarrega o processamento gráfico para múltiplas threads da CPU, aliviando o núcleo principal.
   
 
-## 6- Alternativa com o Daemon Padrão do CachyOS
+## 6 - Latência Zero no Compositor (Hyprland)
+
+O Hyprland não pode adicionar *sync/queue* em cima do jogo. Vamos configurar o `hyprland.lua` para injetar os quadros direto na tela.
+
+**1. (SOMENTE SE TIVER COM PROBLEMAS DE STUTERRING) Reduzir o Polling Rate do Mouse (Anti-Stutter do Wayland):** Estabiliza a leitura do mouse em 250Hz.
+
+```
+echo 'options usbhid mousepoll=4' | sudo tee /etc/modprobe.d/mousepoll.conf
+sudo mkinitcpio -P
+```
+
+**2. Configuração de Latência (Lua):** Edite o arquivo principal do HyDE:
+
+```
+nano ~/.config/hypr/hyprland.lua
+```
+
+Adicione este bloco no **final** do arquivo:
+
+```
+-- ══ Competitive gaming: latência mínima ══
+hl.config({
+    input = {
+        accel_profile = "flat",            -- Mouse 1:1 (Raw Input)
+        force_no_accel = 0
+    },
+    render = {
+        direct_scanout = 2,                -- Pula a composição em fullscreen (-1 frame lag)
+        new_render_scheduling = false,     -- Desliga triple-buffering automático (-1 frame lag)
+    },
+    general = {
+        allow_tearing = true,              -- Master switch para entregar quadros fora do vblank
+    },
+})
+
+-- Tearing imediato exclusivo para Overwatch 2
+hl.window_rule({
+    match = { class = "steam_app_2357570" },
+    immediate = true,
+})
+```
+
+**3. Correção de Escala do Monitor:** O Hyprland sofre penalidade de performance com escalas fracionárias. Edite `~/.config/hypr/monitors.lua` e garanta que o valor de `scale` seja um número inteiro exato (ex: `1` em vez de `0.999999`):
+
+```
+hl.monitor({
+    output = "eDP-1",
+    mode = "1920x1080@60.0",
+    position = "1280x1080",
+    scale = 1
+})
+```
+
+**4. (HYDE PROJECT ONLY) Script de Game Mode (HyDE):** Desliga firulas visuais (blur, sombras, gaps) enquanto joga. Crie o executável:
+
+```
+sudo nano ~/.local/bin/hypr-gamemode-toggle
+```
+
+Cole o código:
+
+```
+#!/usr/bin/env bash
+cur="$(grep -oP '^HYPR_WORKFLOW=\K.*' "$HOME/.local/state/hyde/staterc" 2>/dev/null | tr -d '"')"
+if [ "$cur" = "gaming" ]; then    hyde-shell workflows --set defaultelse    hyde-shell workflows --set gamingfihyprctl reload
+```
+
+Dê permissão:
+
+```
+sudo chmod +x ~/.local/bin/hypr-gamemode-toggle
+```
+
+Volte ao `hyprland.lua` e crie o atalho para ativar isso rapidamente:
+
+```
+hl.bind("SUPER + ALT + G", hl.dsp.exec_cmd("hypr-gamemode-toggle"), {
+    locked = true,
+    description = "[Utilities] game mode",
+})
+```
+
+## 7 - Alternativa com o Daemon Padrão do CachyOS
 
 Caso prefira não utilizar o script customizado `power-control` e queira manter o sistema 100% original, você pode extrair a performance máxima utilizando o gerenciador de energia nativo do CachyOS.
 
