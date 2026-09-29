@@ -20,10 +20,11 @@ Repositório central de configurações, guias de otimização de performance, a
 
 ```
 optimization-cachyos/
-├── optimization-cachyOS.md      # Guia de otimização extrema de performance (CPU/GPU/Wayland)
+├── optimization-cachyOS.md       # Guia de otimização extrema de performance (CPU/GPU/Wayland)
+├── pacotes-extras-uteis.md       # Pacotes e utilitários instalados sob demanda
 ├── personal-tweeks/              # Registro de ajustes finos aplicados no sistema
 │   ├── lista.md                  # Índice de todos os tweaks com status
-│   ├── pacotes-extras-uteis.md   # Pacotes e utilitários instalados sob demanda
+│   ├── updated-tweeks/           # Tweaks modificados/atualizados
 │   └── tweek-details/            # Documentação detalhada e passo a passo de cada tweak
 ├── wallpapers/                   # Coleção de papéis de parede (estáticos e animados)
 └── README.md                     # Este hub

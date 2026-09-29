@@ -23,7 +23,7 @@ Este script assume o controle total da CPU, alternando entre força bruta para o
 sudo nano /usr/local/bin/power-control
 ```
 
-**2. Cole o código abaixo (Versão com Bateria / Turbo Desbloqueado):**
+**2. Cole o código abaixo (Versão Híbrida P-Cores/E-Cores):**
 
 ```
 #!/bin/bash
@@ -35,6 +35,8 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# (i5-1235U: 0-3 sao P-Cores, 4-11 sao E-Cores)
+
 set_turbo() {
     if ! echo "$1" | tee /sys/devices/system/cpu/intel_pstate/no_turbo > /dev/null 2>&1; then
         echo -e "${RED}Turbo nao pode ser alterado.${NC}"
@@ -42,100 +44,107 @@ set_turbo() {
 }
 
 print_full_game() {
-    echo -e "${CYAN}  Governador:    powersave"
-    echo -e "  EPP:           performance"
-    echo -e "  Turbo:         0 (ligado)"
-    echo -e "  Comportamento: CPU livre para subir ao clock maximo quando necessario, recuando nos momentos ociosos. Melhor latencia para jogos.${NC}"
+    echo -e "${CYAN}  Governador (P-Cores): performance"
+    echo -e "  EPP (P-Cores):        performance"
+    echo -e "  EPP (E-Cores):        balance_performance"
+    echo -e "  Turbo:                0 (ligado)"
+    echo -e "  Comportamento: P-Cores no maximo para latencia minima. E-Cores balanceados para nao roubar termica.${NC}"
 }
 
 print_full_performance() {
-    echo -e "${CYAN}  Governador:    performance"
-    echo -e "  EPP:           performance"
-    echo -e "  Turbo:         0 (ligado)"
-    echo -e "  Comportamento: CPU travada no clock maximo o tempo todo, sem recuo. Maximo desempenho bruto, maior consumo.${NC}"
+    echo -e "${CYAN}  Governador:           performance global"
+    echo -e "  EPP:                  performance global"
+    echo -e "  Turbo:                0 (ligado)"
+    echo -e "  Comportamento: Forca total sustentada em todos os nucleos. Alto consumo.${NC}"
 }
 
 print_full_daily() {
-    echo -e "${CYAN}  Governador:    powersave"
-    echo -e "  EPP:           balance_performance"
-    echo -e "  Turbo:         0 (ligado)"
-    echo -e "  Comportamento: CPU sobe e desce conforme a carga, priorizando eficiencia. Uso geral do dia a dia.${NC}"
+    echo -e "${CYAN}  Governador:           powersave global"
+    echo -e "  EPP:                  balance_performance"
+    echo -e "  Turbo:                0 (ligado)"
+    echo -e "  Comportamento: CPU sobe e desce conforme a carga. Uso geral do dia a dia.${NC}"
 }
 
 print_full_battery() {
-    echo -e "${CYAN}  Governador:    powersave"
-    echo -e "  EPP:           power"
-    echo -e "  Turbo:         1 (desligado)"
-    echo -e "  Comportamento: CPU opera nos clocks mais baixos possiveis. Economia maxima de energia.${NC}"
+    echo -e "${CYAN}  Governador (E-Cores): powersave"
+    echo -e "  EPP (E-Cores):        power"
+    echo -e "  EPP (P-Cores):        balance_power"
+    echo -e "  Turbo:                1 (desligado)"
+    echo -e "  Comportamento: Economia extrema nos E-Cores. P-Cores retem folga minima para fluidez da UI.${NC}"
 }
 
-# --- MODO GAME (SMART BOOST) ---
-# Usa o governador powersave com EPP em performance: a CPU sobe ao turbo
-# apenas quando ha demanda real, recuando nos momentos ociosos. Ideal para
-# jogos competitivos onde latencia importa mais que clock sustentado.
+# --- CHECK / DETECT MODE ---
+detect_mode() {
+    local p_epp=$(cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null || echo "")
+    local e_epp=$(cat /sys/devices/system/cpu/cpu4/cpufreq/energy_performance_preference 2>/dev/null || echo "")
+
+    if [ "$p_epp" = "performance" ] && [ "$e_epp" = "balance_performance" ]; then
+        echo -e "Modo Atual:    ${RED}Game (Smart Boost Hibrido)${NC}"
+    elif [ "$p_epp" = "performance" ] && [ "$e_epp" = "performance" ]; then
+        echo -e "Modo Atual:    ${RED}Performance (Forca Bruta Maxima)${NC}"
+    elif [ "$p_epp" = "balance_performance" ] && [ "$e_epp" = "balance_performance" ]; then
+        echo -e "Modo Atual:    ${GREEN}Daily (Padrao Equilibrado)${NC}"
+    elif [ "$p_epp" = "balance_power" ]; then
+        echo -e "Modo Atual:    ${YELLOW}Battery (Economia Hibrida)${NC}"
+    else
+        echo -e "Modo Atual:    ${NC}Customizado/Desconhecido${NC}"
+    fi
+}
+
+# --- MODO GAME (SMART BOOST HIBRIDO) ---
 set_game() {
-    MIN_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq)
-    MAX_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq)
-    cpupower frequency-set -d $MIN_FREQ -u $MAX_FREQ -g powersave > /dev/null
-    echo 10 | tee /sys/devices/system/cpu/intel_pstate/min_perf_pct > /dev/null
-    echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference > /dev/null
-    echo -e "${GREEN}Modo Game (smart): ativo! [ok]${NC}"
+    cpupower -c 0-3 frequency-set -g performance > /dev/null
+    echo performance | tee /sys/devices/system/cpu/cpu[0-3]/cpufreq/energy_performance_preference > /dev/null
+    
+    cpupower -c 4-11 frequency-set -g powersave > /dev/null
+    echo balance_performance | tee /sys/devices/system/cpu/cpu[4-9]/cpufreq/energy_performance_preference > /dev/null
+    echo balance_performance | tee /sys/devices/system/cpu/cpu1[0-1]/cpufreq/energy_performance_preference > /dev/null
+    
     set_turbo 0
-    [ "$2" = "--full" ] && print_full_game
+    echo -e "${GREEN}Modo Game (smart hibrido): ativo! [ok]${NC}"
+    [ "${2:-}" = "--full" ] && print_full_game
 }
 
 # --- MODO PERFORMANCE (INTERMEDIÁRIO) ---
-# Governador performance mantém a CPU no clock maximo continuamente,
-# sem esperar por demanda. Util para cargas pesadas e sustentadas,
-# como compilacao ou encoding. Mais consumo que o modo game.
 set_performance() {
-    MIN_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq)
-    MAX_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq)
-    cpupower frequency-set -d $MIN_FREQ -u $MAX_FREQ -g performance > /dev/null
-    echo 10 | tee /sys/devices/system/cpu/intel_pstate/min_perf_pct > /dev/null
+    cpupower frequency-set -g performance > /dev/null
     echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference > /dev/null
-    echo -e "${RED}Modo Performance: ativo! [ok]${NC}"
     set_turbo 0
-    [ "$2" = "--full" ] && print_full_performance
+    echo -e "${RED}Modo Performance (global): ativo! [ok]${NC}"
+    [ "${2:-}" = "--full" ] && print_full_performance
 }
 
 # --- MODO DAILY (EQUILIBRADO) ---
-# Powersave com EPP balance_performance: a CPU gerencia o clock de forma
-# autonoma priorizando eficiencia. Bom para uso geral, navegacao,
-# desenvolvimento leve e qualquer tarefa fora de jogos.
 set_daily() {
-    MIN_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq)
-    MAX_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq)
-    cpupower frequency-set -d $MIN_FREQ -u $MAX_FREQ -g powersave > /dev/null
-    echo 10 | tee /sys/devices/system/cpu/intel_pstate/min_perf_pct > /dev/null
+    cpupower frequency-set -g powersave > /dev/null
     echo balance_performance | tee /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference > /dev/null
-    echo -e "${GREEN}Modo Daily: ativo! [ok]${NC}"
     set_turbo 0
-    [ "$2" = "--full" ] && print_full_daily
+    echo -e "${GREEN}Modo Daily: ativo! [ok]${NC}"
+    [ "${2:-}" = "--full" ] && print_full_daily
 }
 
-# --- MODO BATTERY (ECONOMIA) ---
-# Powersave com EPP power e turbo desativado: a CPU opera nos clocks
-# mais baixos possiveis em todos os cenarios. Indicado para trabalho
-# leve com foco em autonomia de bateria ou reducao de calor.
+# --- MODO BATTERY (ECONOMIA INTELIGENTE) ---
 set_battery() {
-    MIN_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq)
-    MAX_FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq)
-    cpupower frequency-set -d $MIN_FREQ -u $MAX_FREQ -g powersave > /dev/null
-    echo 10 | tee /sys/devices/system/cpu/intel_pstate/min_perf_pct > /dev/null
-    echo power | tee /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference > /dev/null
-    echo -e "${YELLOW}Modo Battery: ativo! [ok]${NC}"
+    cpupower -c 4-11 frequency-set -g powersave > /dev/null
+    echo power | tee /sys/devices/system/cpu/cpu[4-9]/cpufreq/energy_performance_preference > /dev/null
+    echo power | tee /sys/devices/system/cpu/cpu1[0-1]/cpufreq/energy_performance_preference > /dev/null
+    
+    cpupower -c 0-3 frequency-set -g powersave > /dev/null
+    echo balance_power | tee /sys/devices/system/cpu/cpu[0-3]/cpufreq/energy_performance_preference > /dev/null
+    
     set_turbo 1
-    [ "$2" = "--full" ] && print_full_battery
+    echo -e "${YELLOW}Modo Battery (hibrido): ativo! [ok]${NC}"
+    [ "${2:-}" = "--full" ] && print_full_battery
 }
 
 # --- CHECK ---
 run_check() {
     echo -e "${YELLOW}--- DIAGNOSTICO ---${NC}"
-    echo "Daemon:   $(systemctl is-active power-profiles-daemon)"
-    echo "Governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)"
-    echo "EPP:      $(cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference)"
-    echo "Turbo:    $(cat /sys/devices/system/cpu/intel_pstate/no_turbo) (0 = Ligado / 1 = Desligado)"
+    detect_mode
+    echo "Daemon:        $(systemctl is-active power-profiles-daemon 2>/dev/null || echo 'inativo')"
+    echo "P-Cores EPP:   $(cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null || echo 'N/A')"
+    echo "E-Cores EPP:   $(cat /sys/devices/system/cpu/cpu4/cpufreq/energy_performance_preference 2>/dev/null || echo 'N/A')"
+    echo "Turbo Real:    $(cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null || echo 'N/A') (0 = Ligado / 1 = Desligado)"
 }
 
 # --- MONITOR ---
