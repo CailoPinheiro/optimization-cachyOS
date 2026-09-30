@@ -72,7 +72,18 @@ Estrutura:
   por **caminho** (sem mtime/hash): editar a imagem no lugar nao invalida nada e
   a foto antiga continua aparecendo. Nao voltar para `kitty` sem usar
   `--logo-recache true`. Detalhes em
-  [2026-09-30-fastfetch-logo-cache-kitty-direct.md](tweek-details/2026-09-30-fastfetch-logo-cache-kitty-direct.md).
+  `~/Projects/pesquisas/personalizando-logos-fastfetch.md`.
+- **2026-09-30 - a troca de wallpaper escreve o `config.json` de forma
+  atomica.** A UI do Quickshell sumia porque o `switchwall.sh` gravava
+  `background.wallpaperPath` (o `.mp4`) e `background.thumbnailPath` em duas
+  escritas separadas, com o `ffmpeg` rodando entre elas: o shell via um estado
+  inconsistente (video sem miniatura) e o `least_busy_region.py` recebia um
+  video, devolvia traceback e o `JSON.parse` sem `try`/`catch` derrubava a
+  renderizacao. Regra: **miniatura primeiro, depois uma unica chamada do `jq`
+  com os dois campos, tmp + `mv`**. Nao voltar a usar
+  `set_wallpaper_path` + `set_thumbnail_path` em sequencia na troca de
+  wallpaper. Detalhes em
+  [2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md](tweek-details/2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md).
 
 ## Listas Auxiliares e Recursos
 
