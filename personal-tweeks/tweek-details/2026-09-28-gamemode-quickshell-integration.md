@@ -2,6 +2,10 @@
 
 **Data**: 2026-09-28 · **Status**: Aplicado e funcionando
 
+## Erratas Resolvidas (2026-09-30)
+1. **Fix do comportamento EasyEffects Autostart**: EasyEffects não inicia mais automaticamente no boot, permitindo que a UI (Quickshell toggle) tenha controle total sobre o estado (ON inicia, OFF mata). O script do game mode apenas modula (`easyeffects -b 1 / 2`) caso o programa já esteja aberto.
+2. **Fix de Integração com Power Control**: Ao criar condições `detect_power_mode()`, o `hypr-gamemode-toggle` agora puxa em cascata o `sudo power-control game` com reversão exata do que já estava aplicado quando o game-mode é desligado (não travando mais em apenas um modo).
+
 ## Motivo
 Otimizar ao máximo o desempenho da GPU integrada (Intel Iris Xe) e CPU durante sessões de jogos competitivos, eliminando micro-travadas, cálculos de transparência/blur/sombras, latência de renderização e consumo de recursos em segundo plano (vídeo wallpapers, sincronização de nuvem e efeitos DSP de áudio), sem utilizar comandos destrutivos (`hyprctl reload` ou `kill -9`).
 
@@ -53,8 +57,8 @@ chmod +x ~/.local/bin/hypr-gamemode-toggle
 ```
 
 O script detecta o estado atual via `hyprctl getoption animations:enabled`:
-- Se animações **ligadas** → **ativa** o Game Mode (SIGSTOP nos processos, desliga blur/sombras/gaps, bypass EasyEffects)
-- Se animações **desligadas** → **desativa** o Game Mode (SIGCONT, remove overrides via hyprconfigurator, restaura EasyEffects)
+- Se animações **ligadas** → **ativa** o Game Mode (SIGSTOP nos processos, desliga blur/sombras/gaps, bypass EasyEffects, salva PowerMode e ativa Game Profile)
+- Se animações **desligadas** → **desativa** o Game Mode (SIGCONT, remove overrides via hyprconfigurator, restaura EasyEffects e restaura PowerMode anterior)
 
 ### 3. Modificar o `GameModeToggle.qml` no repositório de dotfiles
 
@@ -115,6 +119,7 @@ hyprctl reload
 - `~/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml`: Sincronizado com a dotfile.
 - `~/Projects/bkp-das-coisa/hypr-gamemode-toggle.bak`: Backup do script original.
 - `~/Projects/bkp-das-coisa/GameModeToggle.qml.bak`: Backup do QML original.
+- `~/dots-hyprland/dots/.config/hypr/hyprland/execs.lua`: Comentado o autostart do EasyEffects para permitir controle via UI.
 
 ## Como verificar
 ```fish
@@ -139,3 +144,4 @@ cp ~/Projects/bkp-das-coisa/hypr-gamemode-toggle.bak ~/.local/bin/hypr-gamemode-
 cp ~/Projects/bkp-das-coisa/GameModeToggle.qml.bak ~/dots-hyprland/dots/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml
 cp ~/Projects/bkp-das-coisa/GameModeToggle.qml.bak ~/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml
 ```
+E descomentar o EasyEffects no `execs.lua` se desejar autostart novamente.
