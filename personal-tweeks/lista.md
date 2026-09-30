@@ -26,6 +26,7 @@ Estrutura:
 | 2026-09-28 | Terraria: Resolução de Performance (Turbo Boost e MangoHud) | **Aplicado** | [2026-09-28-terraria-performance-fix.md](tweek-details/2026-09-28-terraria-performance-fix.md) |
 | 2026-09-28 | Power Control: Inteligência Híbrida (P-Cores e E-Cores) | **Aplicado no Instalador** | [2026-09-28-power-control-hibrido.md](updated-tweeks/2026-09-28-power-control-hibrido.md) |
 | 2026-09-30 | Fastfetch: Logo de imagem travado no cache (`kitty` -> `kitty-direct`) | **Aplicado** | [2026-09-30-fastfetch-logo-cache-kitty-direct.md](tweek-details/2026-09-30-fastfetch-logo-cache-kitty-direct.md) |
+| 2026-09-30 | Animated Wallpaper (mpvpaper) e Correção Total de Crashes no Shell | **Aplicado e funcionando** | [2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md](tweek-details/2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md) |
 
 ## Decisoes que nao devem ser revertidas sem o usuario pedir
 
