@@ -15,9 +15,7 @@ Estrutura:
 | 2026-09-24 | Teclado: us/br (ABNT-2) via Alt+Shift | Aplicado | [2026-09-24-teclado-us-br.md](tweek-details/2026-09-24-teclado-us-br.md) |
 | 2026-09-25 | MEGAsync: Wayland nativo (qt5-wayland) | Aplicado — resolvido | [2026-09-25-megasync-wayland.md](tweek-details/2026-09-25-megasync-wayland.md) |
 | 2026-09-26 | Autologin: Hyprland sobe sozinho no tty1 | Aplicado — validado | [2026-09-26-autologin-hyprland-tty1.md](tweek-details/2026-09-26-autologin-hyprland-tty1.md) |
-| 2026-09-26 | Caffeine: botão "Keep awake" que funciona de verdade | Aplicado — validado | [2026-09-26-caffeine-keep-awake.md](tweek-details/2026-09-26-caffeine-keep-awake.md) |
 | 2026-09-26 | Greeter tuigreet (greetd): autologin + senha ao sair + tema dinâmico | **Aplicado e funcionando** | [2026-09-26-greeter-tuigreet.md](tweek-details/2026-09-26-greeter-tuigreet.md) |
-| 2026-09-26 | Caffeine: tampa, inhibitor persistente e auto-cura | Aplicado — tampa revertida p/ padrão | [2026-09-26-caffeine-lid-e-selfheal.md](tweek-details/2026-09-26-caffeine-lid-e-selfheal.md) |
 | 2026-09-27 | Híbrido: Fish como backend, Zsh como frontend (Terminal Kitty) | **Aplicado e funcionando** | [2026-09-27-kitty-zsh-hibrido.md](tweek-details/2026-09-27-kitty-zsh-hibrido.md) |
 | 2026-09-27 | Otimizações Wayland/Hyprland (Input Lag, Tearing e GameMode) | **Aplicado e funcionando** | [2026-09-27-overwatch-wayland-tweaks.md](tweek-details/2026-09-27-overwatch-wayland-tweaks.md) |
 | 2026-09-28 | Integração Suave do Game Mode com Quickshell e Hyprland | **Aplicado e funcionando** | [2026-09-28-gamemode-quickshell-integration.md](tweek-details/2026-09-28-gamemode-quickshell-integration.md) |
@@ -36,16 +34,15 @@ Estrutura:
   **nao** devem ser removidos. O botao de cafe existe para as *excecoes*
   temporarias, nao para substituir a regra. A "simplificacao" de apagar os
   listeners foi proposta e **rejeitada** pelo usuario. Detalhes em
-  [2026-09-26-caffeine-keep-awake.md](tweek-details/2026-09-26-caffeine-keep-awake.md).
+  [2026-09-30-caffeine-selfheal-e-lock-fix.md](tweek-details/2026-09-30-caffeine-selfheal-e-lock-fix.md).
 - **2026-09-26 - a tampa fica no comportamento PADRAO do sistema, de proposito.**
   O `caffeine` usa `--what=idle:sleep`, **sem** `handle-lid-switch`. Fechar a
   tampa suspende, com o cafe ligado ou nao — e o que o usuario pediu. Um
   `handle-lid-switch` no inhibitor **sobrescreveria** o `HandleLidSwitch` do
   logind (lock de baixo nivel e sempre honrado, independente do
   `LidSwitchIgnoreInhibited=`), ou seja, ele "corrigia" a tampa as escondidas.
-  **Nao reintroduzir** achando que e a configuracao original. Se um dia o
-  usuario quiser a tampa obedecendo ao cafe, o caminho sem sudo esta documentado
-  em [2026-09-26-caffeine-lid-e-selfheal.md](tweek-details/2026-09-26-caffeine-lid-e-selfheal.md);
+  **Nao reintroduzir** achando que e a configuracao original. Detalhes em
+  [2026-09-30-caffeine-selfheal-e-lock-fix.md](tweek-details/2026-09-30-caffeine-selfheal-e-lock-fix.md);
   e `LidSwitchIgnoreInhibited=no` / `HandleLidSwitch=ignore` em `logind.conf.d`
   continuam descartados (sudo + reboot, e o segundo desligaria a tampa para
   sempre).
