@@ -70,3 +70,11 @@ fi
    ```bash
    rm -rf ~/.config/fastfetch
    ```
+
+## Atualizacoes
+
+- **2026-09-30** — `--logo-type kitty` foi trocado por `--logo-type kitty-direct`
+  no `~/.zshrc`. Motivo: com `kitty` o Fastfetch cacheia a imagem renderizada
+  por caminho de arquivo, e editar a imagem no lugar nao atualizava o logo (a
+  foto antiga continuava aparecendo). Ver
+  [2026-09-30-fastfetch-logo-cache-kitty-direct.md](2026-09-30-fastfetch-logo-cache-kitty-direct.md).

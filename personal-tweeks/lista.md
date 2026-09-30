@@ -25,6 +25,7 @@ Estrutura:
 | 2026-09-28 | Fastfetch: Sorteio Aleatório de Logos (ASCII/ANSI e Imagens) | **Aplicado e funcionando** | [2026-09-28-fastfetch-random-logo.md](tweek-details/2026-09-28-fastfetch-random-logo.md) |
 | 2026-09-28 | Terraria: Resolução de Performance (Turbo Boost e MangoHud) | **Aplicado** | [2026-09-28-terraria-performance-fix.md](tweek-details/2026-09-28-terraria-performance-fix.md) |
 | 2026-09-28 | Power Control: Inteligência Híbrida (P-Cores e E-Cores) | **Aplicado no Instalador** | [2026-09-28-power-control-hibrido.md](updated-tweeks/2026-09-28-power-control-hibrido.md) |
+| 2026-09-30 | Fastfetch: Logo de imagem travado no cache (`kitty` -> `kitty-direct`) | **Aplicado** | [2026-09-30-fastfetch-logo-cache-kitty-direct.md](tweek-details/2026-09-30-fastfetch-logo-cache-kitty-direct.md) |
 
 ## Decisoes que nao devem ser revertidas sem o usuario pedir
 
@@ -67,6 +68,13 @@ Estrutura:
   parecerinnocua. O mesmo vale para o `--source-color-index 0` no comando
   manual do matugen. Nao "simplificar" removendo o `chown`. Detalhes em
   [2026-09-26-greeter-tuigreet.md](tweek-details/2026-09-26-greeter-tuigreet.md).
+- **2026-09-30 - o logo de imagem do Fastfetch e `kitty-direct`, nao `kitty`.**
+  Com `--logo-type kitty` o Fastfetch pre-renderiza a imagem e cacheia o
+  payload em `~/.cache/fastfetch/images/<caminho>/<tamanho>/kittyc`, com chave
+  por **caminho** (sem mtime/hash): editar a imagem no lugar nao invalida nada e
+  a foto antiga continua aparecendo. Nao voltar para `kitty` sem usar
+  `--logo-recache true`. Detalhes em
+  [2026-09-30-fastfetch-logo-cache-kitty-direct.md](tweek-details/2026-09-30-fastfetch-logo-cache-kitty-direct.md).
 
 ## Listas Auxiliares e Recursos
 
