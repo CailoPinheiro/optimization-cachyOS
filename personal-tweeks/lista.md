@@ -25,6 +25,7 @@ Estrutura:
 | 2026-09-28 | Power Control: Inteligência Híbrida (P-Cores e E-Cores) | **Aplicado no Instalador** | [2026-09-28-power-control-hibrido.md](updated-tweeks/2026-09-28-power-control-hibrido.md) |
 | 2026-09-30 | Animated Wallpaper (mpvpaper) e Correção Total de Crashes no Shell | **Aplicado e funcionando** | [2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md](tweek-details/2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md) |
 | 2026-09-30 | Caffeine: Auto-Cura (Self-Heal) e Correção de Bloqueio Prematuro | **Aplicado e validado** | [2026-09-30-caffeine-selfheal-e-lock-fix.md](tweek-details/2026-09-30-caffeine-selfheal-e-lock-fix.md) |
+| 2026-09-30 | Integração e Tematização Dinâmica do Matugen em Aplicativos (Xed, VS Code, MarkText, qBittorrent) | **Aplicado e funcionando** | [2026-09-30-matugen-apps-theming-integration.md](tweek-details/2026-09-30-matugen-apps-theming-integration.md) |
 
 ## Decisoes que nao devem ser revertidas sem o usuario pedir
 
