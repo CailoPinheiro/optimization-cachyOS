@@ -1,70 +1,73 @@
-# Caffeine: Auto-Cura (Self-Heal) e Correcao de Bloqueio Prematuro
+# Caffeine: Auto-Cura (Self-Heal), Unit do Inhibitor e Correção de Bloqueio Prematuro
 
-**Data**: 2026-09-30 · **Status**: Aplicado e validado
+**Data:** 2026-09-30  
+**Status:** **Aplicado e consolidado** (atualizado em 2026-10-25)
 
 ## Motivo
-1. **Auto-Cura contra Deriva de Estado**: Garantir que o Caffeine continue ativo mesmo se o processo `hypridle` reiniciar ou se o processo de bloqueio no systemd cair.
-2. **Correcao do Bloqueio Imediato**: Eliminar o comportamento em que desativar o Caffeine fazia a sessao bloquear instantaneamente e ir para a tela de lockscreen.
+
+1. **Auto-Cura contra Deriva de Estado**: Garantir que o modo Caffeine continue efetivamente ativo mesmo se o processo `hypridle` reiniciar, se cair ou se o processo de bloqueio no systemd for interrompido.
+2. **Correção do Bloqueio Imediato**: Eliminar o comportamento em que desativar o Caffeine fazia a sessão bloquear instantaneamente e disparar o lockscreen.
+3. **Persistência do Inhibitor**: O inhibitor do logind deve rodar em unit systemd própria de usuário com `Restart=always`, garantindo que não seja encerrado pelo cgroup transitório do serviço de verificação periódica.
 
 ## Causa Raiz
 
-### 1. Deriva de Estado (State Drift)
-Ao ativar o Caffeine, o `hypridle` era congelado com `SIGSTOP` e um processo `systemd-inhibit` era criado. Caso o `hypridle` caisse ou reiniciasse por qualquer motivo externo, ele voltava descongelado, fazendo a tela apagar apos 10 minutos enquanto a interface visual ainda informava que o modo estava ativo. Alem disso, sem `setsid`, o inhibitor morria a cada recarregamento da interface do Quickshell (`qs -c ii`).
+### 1. Deriva de Estado e Morte do Inhibitor em cgroup
+Ao ativar o Caffeine, o `hypridle` era pausado com `SIGSTOP` e um processo `systemd-inhibit` era disparado em segundo plano. Porém, comandos como `setsid` criam uma nova sessão POSIX mas não escapam do cgroup do systemd: ao rodar dentro de um serviço oneshot (`caffeine-watch.service`) ou ser atrelado ao ciclo de vida do Quickshell, o inhibitor morria silenciosamente quando o processo pai terminava. Além disso, se o `hypridle` morresse, o script antigo não o trazia de volta.
 
 ### 2. Armadilha do SIGCONT ao Desativar
-Para reiniciar o `hypridle` de forma limpa ao sair do Caffeine, o script enviava `SIGCONT` seguido de `pkill`. Como os contadores de inatividade do `hypridle` continuavam envelhecendo internamente enquanto o processo estava pausado (`SIGSTOP`), o ato de descongelar (`SIGCONT`) fazia com que todos os eventos acumulados disparassem de uma vez. O listener de 300 segundos (`loginctl lock-session`) executava no mesmo milissegundo, antes que o comando de encerramento pudesse alcancar o processo.
+Para reiniciar o `hypridle` ao sair do Caffeine, o script enviava `SIGCONT` antes de tentar reiniciar. Como os contadores de inatividade do `hypridle` continuavam envelhecendo internamente enquanto o processo estava pausado (`SIGSTOP`), o envio de `SIGCONT` fazia todos os eventos acumulados dispararem de imediato: o listener de 300 segundos (`loginctl lock-session`) executava no mesmo milissegundo, trancando a tela.
+
+### 3. Código de Retorno do Reconcile
+O subcomando `reconcile` executava `apply_on()`, que retornava `1` quando corrigia algum estado divergente. O systemd interpretava qualquer código diferente de 0 como falha do serviço `caffeine-watch.service`, poluindo os logs do journal.
 
 ## O que foi feito
 
-1. **Desvinculacao com setsid**:
-   - A funcao `start_inhibitor()` no script `~/.local/bin/caffeine` passou a usar `setsid` para rodar desvinculada do ciclo de vida do Quickshell, sobrevivendo a reloads da barra.
-
-2. **Mecanismo de Auto-Cura**:
-   - Adicionado o subcomando `reconcile` no script `~/.local/bin/caffeine`, que verifica se o estado desejado (`~/.local/state/caffeine`) corresponde a realidade dos processos e corrige desvios silenciosamente.
-   - Criados os arquivos de unidade de usuario no systemd (`caffeine-watch.service` e `caffeine-watch.timer`) rodando o subcomando `reconcile` a cada 60 segundos sem necessidade de permissoes administrativas (`sudo`).
-
-3. **Eliminacao do Lockscreen Indesejado**:
-   - A rotina `restart_hypridle()` foi alterada para aplicar diretamente `pkill -9 -x hypridle` no processo que estava pausado.
-   - Sem receber `SIGCONT`, o `hypridle` e finalizado sem processar os timers pendentes, e uma nova instancia e iniciada do zero com os contadores de inatividade limpos.
-
-## Arquivos tocados
-- `~/.local/bin/caffeine`: Atualizado com `setsid`, subcomando `reconcile` e eliminacao do `SIGCONT` no `restart_hypridle()`.
-- `~/.config/systemd/user/caffeine-watch.service`: Servico oneshot de reconciliacao.
-- `~/.config/systemd/user/caffeine-watch.timer`: Timer periodico com intervalo de 60 segundos.
+1. **Unit Dedicada para o Inhibitor (`caffeine-inhibitor.service`)**:
+   - O comando `systemd-inhibit` passou a rodar como um serviço simples de usuário do systemd, com `Restart=always` e `RestartSec=5`, completamente independente de processos transitórios.
+2. **Isolamento de Processos no Watchdog (`KillMode=process`)**:
+   - `caffeine-watch.service` configurado com `KillMode=process`. Assim, quando o oneshot de verificação termina, processos de longa duração disparados por ele (como um `hypridle` reiniciado) continuam vivos.
+3. **Subcomando `reconcile` Robusto**:
+   - Retorna sempre `0` para o systemd.
+   - Respawn automático do `hypridle` caso ele não esteja rodando antes de aplicar o congelamento (`SIGSTOP`).
+4. **Eliminação do SIGCONT no Encerramento**:
+   - A rotina `restart_hypridle()` encerra o processo diretamente com `pkill -9 -x hypridle`.
+   - Sem receber `SIGCONT`, o `hypridle` é encerrado sem executar listeners atrasados, e uma nova instância limpa é iniciada com `setsid`.
 
 ## Como realizar (Passo a passo)
 
-### 1. Atualizar o script ~/.local/bin/caffeine
+### 1. Criar a unit do inhibitor no systemd
 
-O script reside em `~/.local/bin/caffeine`. A funcao de reinicio deve conter:
-```bash
-restart_hypridle() {
-    pkill -9 -x hypridle 2>/dev/null
-    sleep 1
-    setsid hypridle >/dev/null 2>&1 </dev/null &
-    disown 2>/dev/null
-    sleep 1
-    hypridle_running
-}
+Arquivo `~/.config/systemd/user/caffeine-inhibitor.service`:
+
+```ini
+[Unit]
+Description=Caffeine logind idle/sleep inhibitor
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/systemd-inhibit --what=idle:sleep --mode=block --who=caffeine --why="caffeine mode enabled" sleep infinity
+Restart=always
+RestartSec=5
 ```
 
-### 2. Configurar o servico e timer de auto-cura no systemd (sem sudo)
+### 2. Criar o serviço e timer de auto-cura periódica
 
-```bash
-mkdir -p ~/.config/systemd/user
+Arquivo `~/.config/systemd/user/caffeine-watch.service`:
 
-# Criar a unidade de servico
-cat > ~/.config/systemd/user/caffeine-watch.service << 'EOF'
+```ini
 [Unit]
 Description=Re-assert caffeine keep-awake state if it drifted
+Documentation=file://%h/Projects/optimization-cachyos/personal-tweeks/tweek-details/2026-09-30-caffeine-selfheal-e-lock-fix.md
 
 [Service]
 Type=oneshot
+KillMode=process
 ExecStart=%h/.local/bin/caffeine reconcile
-EOF
+```
 
-# Criar o timer periodico
-cat > ~/.config/systemd/user/caffeine-watch.timer << 'EOF'
+Arquivo `~/.config/systemd/user/caffeine-watch.timer`:
+
+```ini
 [Unit]
 Description=Check caffeine keep-awake state every minute
 
@@ -76,43 +79,102 @@ Unit=caffeine-watch.service
 
 [Install]
 WantedBy=timers.target
-EOF
+```
 
-# Ativar e iniciar o timer
+### 3. Configurar o script `~/.local/bin/caffeine`
+
+Certificar-se de que `~/.local/bin/caffeine` gerencia a unit do inhibitor e faz o auto-heal:
+
+```bash
+INHIB_UNIT="caffeine-inhibitor.service"
+
+inhibitor_alive() {
+    systemctl --user is-active --quiet "$INHIB_UNIT"
+}
+
+start_inhibitor() {
+    systemctl --user reset-failed "$INHIB_UNIT" 2>/dev/null || true
+    systemctl --user start "$INHIB_UNIT"
+    inhibitor_alive
+}
+
+stop_inhibitor() {
+    systemctl --user stop "$INHIB_UNIT" 2>/dev/null || true
+}
+
+restart_hypridle() {
+    # Sem SIGCONT: finaliza direto para evitar disparar timers pendentes
+    pkill -9 -x hypridle 2>/dev/null
+    sleep 1
+    setsid hypridle >/dev/null 2>&1 </dev/null &
+    disown 2>/dev/null
+    sleep 1
+    hypridle_running
+}
+
+reconcile() {
+    if [ "$(read_state)" = "on" ]; then
+        apply_on >/dev/null || true
+    fi
+    return 0
+}
+```
+
+### 4. Recarregar os serviços de usuário
+
+```bash
 systemctl --user daemon-reload
 systemctl --user enable --now caffeine-watch.timer
 ```
 
+## Arquivos tocados
+
+- `~/.local/bin/caffeine` (script principal de controle e reconciliação)
+- `~/.config/systemd/user/caffeine-inhibitor.service` (unidade do bloqueador de inatividade do logind)
+- `~/.config/systemd/user/caffeine-watch.service` (serviço de reconciliação periódica com KillMode=process)
+- `~/.config/systemd/user/caffeine-watch.timer` (agendador de 60 segundos)
+
 ## Como verificar
 
-1. **Verificar estado e auto-cura**:
-```bash
-caffeine on
-caffeine status
-# Saida esperada: caffeine: on | hypridle: running (pid ...) (frozen: yes) | logind inhibitor: yes (pid ...)
-```
+1. **Verificar status com o café ligado**:
+   ```bash
+   caffeine on
+   caffeine status
+   # Saída esperada: caffeine: on | hypridle: running (pid ...) (frozen: yes) | logind inhibitor: yes (unit caffeine-inhibitor.service)
+   ```
 
-2. **Simular queda do hypridle com cafe ligado**:
-```bash
-pkill -9 -x hypridle
-sleep 70
-caffeine status
-# O hypridle deve ter retornado ao estado congelado (frozen: yes)
-```
+2. **Verificar execução limpa do serviço watchdog**:
+   ```bash
+   systemctl --user status caffeine-watch.service
+   # Esperado: Result=success / ExecMainStatus=0
+   ```
 
-3. **Verificar desativacao sem bloqueio de tela**:
-```bash
-caffeine on
-# Aguarde alguns minutos e entao desative
-caffeine off
-# O desktop deve continuar ativo e destravado, sem disparar a tela de bloqueio
-```
+3. **Testar auto-cura (simular queda do hypridle)**:
+   ```bash
+   pkill -9 -x hypridle
+   sleep 70
+   caffeine status
+   # O hypridle deve ter sido ressuscitado e recongelado automaticamente (frozen: yes)
+   ```
+
+4. **Testar desativação sem bloqueio**:
+   ```bash
+   caffeine off
+   # A tela deve continuar ativa imediatamente, sem bloquear ou disparar lockscreen
+   ```
 
 ## Como reverter
 
 ```bash
 caffeine off
 systemctl --user disable --now caffeine-watch.timer
-rm -f ~/.config/systemd/user/caffeine-watch.{timer,service}
+systemctl --user stop caffeine-inhibitor.service
+rm -f ~/.config/systemd/user/caffeine-watch.{service,timer}
+rm -f ~/.config/systemd/user/caffeine-inhibitor.service
 systemctl --user daemon-reload
 ```
+
+## Histórico e Evolução
+
+- **2026-09-30 (Original)**: Implementado o subcomando `reconcile`, o timer no systemd e a substituição do `SIGCONT` por `pkill -9` no `restart_hypridle()`.
+- **2026-10-25 (Consolidação)**: Resolvida a perda do inhibitor movendo-o para a unit `caffeine-inhibitor.service` (escapando do cgroup do oneshot). Adicionado `KillMode=process` no watch service, respawn explícito de hypridle no `apply_on()` e retorno forçado de `0` no `reconcile()`.

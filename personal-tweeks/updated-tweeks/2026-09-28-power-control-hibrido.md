@@ -26,7 +26,7 @@ sudo power-control game
 
 ## Arquivos tocados
 - `~/Projects/mandar-cailo/tools/game-config/scripts/install-power-control.sh` (modificadas as regras do instalador de automação).
-- `~/Projects/optimization-cachyos/optimization-cachyOS.md` (Substituído o script global antigo pelo novo script híbrido como fonte da verdade).
+- `~/Projects/optimization-cachyos/custom-power-controll.md` (guia do power-control híbrido e fonte da verdade dos perfis).
 - Guias avulsos/teóricos extra adicionados em `~/Projects/pesquisas/hybrid-power-control.md` e `~/Projects/pesquisas/2026-09-28-guia-taskset.md`.
 
 ## Como verificar

@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+
+# ==============================================================================
+# HYPRLAND GAME MODE & LOW-LATENCY OPTIMIZER (Intel Iris Xe + CachyOS)
+# ==============================================================================
+# Executado via Super + Alt + G ou pelo Quickshell QuickToggle.
+# 100% nao-destrutivo: usa SIGSTOP/SIGCONT e hyprconfigurator sem reiniciar o compositor.
+# ==============================================================================
+
+IS_ANIM_ENABLED=$(hyprctl getoption animations:enabled -j 2>/dev/null | jq -r '.bool // empty')
+if [ -z "$IS_ANIM_ENABLED" ]; then
+    IS_ANIM_ENABLED=$(hyprctl getoption animations:enabled 2>/dev/null | awk 'NR==1{print $2}')
+fi
+
+CONFIGURATOR="$HOME/.config/quickshell/ii/scripts/hyprland/hyprconfigurator.py"
+SHELL_OVERRIDES="$HOME/.config/hypr/hyprland/shellOverrides/main.lua"
+BG_PROCESSES=("mpvpaper" "megasync" "hypridle" "tracker-miner-fs-3" "baloo_file")
+POWER_STATE_FILE="$HOME/.local/state/gamemode_prev_power_mode"
+
+detect_power_mode() {
+    local p_epp=$(cat /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference 2>/dev/null || echo "")
+    local e_epp=$(cat /sys/devices/system/cpu/cpu4/cpufreq/energy_performance_preference 2>/dev/null || echo "")
+
+    if [ "$p_epp" = "performance" ] && [ "$e_epp" = "balance_performance" ]; then
+        echo "game"
+    elif [ "$p_epp" = "performance" ] && [ "$e_epp" = "performance" ]; then
+        echo "performance"
+    elif [ "$p_epp" = "balance_performance" ] && [ "$e_epp" = "balance_performance" ]; then
+        echo "daily"
+    elif [ "$p_epp" = "balance_power" ] || [ "$e_epp" = "power" ]; then
+        echo "battery"
+    else
+        echo "daily"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# ATIVAR GAME MODE
+# ------------------------------------------------------------------------------
+if [ "$IS_ANIM_ENABLED" = "true" ] || [ "$IS_ANIM_ENABLED" = "1" ]; then
+
+    # A. Salvar perfil de energia atual e aplicar perfil de jogo
+    CURRENT_POWER=$(detect_power_mode)
+    mkdir -p "$(dirname "$POWER_STATE_FILE")"
+    echo "$CURRENT_POWER" > "$POWER_STATE_FILE"
+    sudo power-control game
+
+    # B. Ajustes Visuais e de Latencia no Compositor (Hyprland)
+    if [ -f "$CONFIGURATOR" ]; then
+        python3 "$CONFIGURATOR" --file "$SHELL_OVERRIDES" \
+            --set "animations:enabled" 0 \
+            --set "decoration:shadow:enabled" 0 \
+            --set "decoration:blur:enabled" 0 \
+            --set "decoration:rounding" 0 \
+            --set "decoration:active_opacity" 1.0 \
+            --set "decoration:inactive_opacity" 1.0 \
+            --set "decoration:dim_inactive" 0 \
+            --set "decoration:dim_special" 0 \
+            --set "decoration:dim_around" 0 \
+            --set "general:gaps_in" 0 \
+            --set "general:gaps_out" 0 \
+            --set "general:border_size" 1 \
+            --set "general:allow_tearing" 1 >/dev/null 2>&1
+    else
+        hyprctl --batch "\
+            keyword animations:enabled 0;\
+            keyword decoration:shadow:enabled 0;\
+            keyword decoration:blur:enabled 0;\
+            keyword decoration:rounding 0;\
+            keyword decoration:active_opacity 1.0;\
+            keyword decoration:inactive_opacity 1.0;\
+            keyword decoration:dim_inactive 0;\
+            keyword decoration:dim_special 0;\
+            keyword decoration:dim_around 0;\
+            keyword general:gaps_in 0;\
+            keyword general:gaps_out 0;\
+            keyword general:border_size 1;\
+            keyword general:allow_tearing 1" >/dev/null 2>&1
+    fi
+
+    # C. Bypass no processamento DSP de audio (EasyEffects) apenas se estiver aberto
+    if pgrep -x easyeffects >/dev/null 2>&1; then
+        easyeffects -b 1 >/dev/null 2>&1 &
+    fi
+
+    # D. Congelamento suave de processos em background
+    for proc in "${BG_PROCESSES[@]}"; do
+        pkill -STOP -x "$proc" 2>/dev/null
+    done
+
+    # E. Notificacao
+    notify-send -t 2500 -u low -i "gamepad" "Game Mode: ON" "Perfil anterior ($CURRENT_POWER) salvo"
+    exit 0
+
+# ------------------------------------------------------------------------------
+# DESATIVAR GAME MODE
+# ------------------------------------------------------------------------------
+else
+
+    # A. Restaurar perfil de energia anterior
+    PREV_MODE="daily"
+    if [ -f "$POWER_STATE_FILE" ]; then
+        SAVED_MODE=$(cat "$POWER_STATE_FILE" 2>/dev/null)
+        [ -n "$SAVED_MODE" ] && PREV_MODE="$SAVED_MODE"
+        rm -f "$POWER_STATE_FILE"
+    fi
+    sudo power-control "$PREV_MODE"
+
+    # B. Restaura o Compositor
+    if [ -f "$CONFIGURATOR" ]; then
+        python3 "$CONFIGURATOR" --file "$SHELL_OVERRIDES" \
+            --reset "animations:enabled" \
+            --reset "decoration:shadow:enabled" \
+            --reset "decoration:blur:enabled" \
+            --reset "decoration:rounding" \
+            --reset "decoration:active_opacity" \
+            --reset "decoration:inactive_opacity" \
+            --reset "decoration:dim_inactive" \
+            --reset "decoration:dim_special" \
+            --reset "decoration:dim_around" \
+            --reset "general:gaps_in" \
+            --reset "general:gaps_out" \
+            --reset "general:border_size" \
+            --reset "general:allow_tearing" >/dev/null 2>&1
+    else
+        hyprctl reload >/dev/null 2>&1
+    fi
+
+    # C. Restaura efeitos de audio apenas se estiver aberto
+    if pgrep -x easyeffects >/dev/null 2>&1; then
+        easyeffects -b 2 >/dev/null 2>&1 &
+    fi
+
+    # D. Descongela processos
+    for proc in "${BG_PROCESSES[@]}"; do
+        pkill -CONT -x "$proc" 2>/dev/null
+    done
+
+    # E. Notificacao
+    notify-send -t 2000 -u low -i "gamepad" "Game Mode: OFF" "Perfil restaurado para: $PREV_MODE"
+    exit 0
+fi

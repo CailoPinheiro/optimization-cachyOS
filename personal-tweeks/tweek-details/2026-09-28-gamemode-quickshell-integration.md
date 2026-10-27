@@ -1,6 +1,6 @@
 # Integração Suave do Game Mode com Quickshell e Hyprland
 
-**Data**: 2026-09-28 · **Status**: Aplicado e funcionando
+**Data**: 2026-09-28 · **Status**: **Aplicado e consolidado** (atualizado em 2026-09-30 e 2026-10-25)
 
 ## Erratas Resolvidas (2026-09-30)
 1. **Fix do comportamento EasyEffects Autostart**: EasyEffects não inicia mais automaticamente no boot, permitindo que a UI (Quickshell toggle) tenha controle total sobre o estado (ON inicia, OFF mata). O script do game mode apenas modula (`easyeffects -b 1 / 2`) caso o programa já esteja aberto.
@@ -23,46 +23,81 @@ Otimizar ao máximo o desempenho da GPU integrada (Intel Iris Xe) e CPU durante 
 2. **Economia de CPU no Áudio**:
    - Ativação de desvio global no EasyEffects (`easyeffects -b 1`) ao iniciar o Game Mode.
    - Restauração automática dos efeitos normais (`easyeffects -b 2`) ao desativar.
-3. **Congelamento suave de processos em background (SIGSTOP / SIGCONT)**:
+3. **Congelamento suave de processos em background (SIGSTOP / reinício seguro do hypridle)**:
    - `mpvpaper` (se houver wallpaper animado/vídeo rodando, congela e poupa 10–15% de GPU).
    - `megasync` (pausa uploads/downloads e I/O de disco).
-   - `hypridle` (impede suspensão ou desligamento de tela durante uso de controles/gamepads).
+   - `hypridle` (congelado via `SIGSTOP` ao ativar; na desativação é reiniciado do zero via `kill -9` + `setsid`, nunca `SIGCONT`, respeitando o Caffeine se já estiver ativo).
    - `tracker-miner-fs-3` e `baloo_file` (indexadores de arquivos pausados).
 4. **Sincronia Total e Unificada**:
    - O atalho `Super + Alt + G` e o botão da UI do Quickshell (`GameModeToggle.qml`) executam o mesmo script `~/.local/bin/hypr-gamemode-toggle`.
    - Modificações aplicadas de forma suave via `shellOverrides/main.lua` sem quedas ou reinicialização do compositor.
 5. **Backups Seguros**:
-   - Arquivos originais salvos em `~/Projects/bkp-das-coisa/`.
+   - Arquivos originais salvos em `~/Projects/optimization-cachyos/personal-tweeks/bkp/`.
 
 ## Como realizar (Passo a passo)
 
 ### 1. Fazer backup dos arquivos originais
 
 ```bash
-mkdir -p ~/Projects/bkp-das-coisa
-cp ~/.local/bin/hypr-gamemode-toggle ~/Projects/bkp-das-coisa/hypr-gamemode-toggle.bak
+mkdir -p ~/Projects/optimization-cachyos/personal-tweeks/bkp
+cp ~/.local/bin/hypr-gamemode-toggle ~/Projects/optimization-cachyos/personal-tweeks/bkp/hypr-gamemode-toggle.2026-09-28.bak
 cp ~/dots-hyprland/dots/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml \
-   ~/Projects/bkp-das-coisa/GameModeToggle.qml.bak
+   ~/Projects/optimization-cachyos/personal-tweeks/bkp/GameModeToggle.qml.2026-09-28.bak
 ```
 
-### 2. Instalar o script expandido `~/.local/bin/hypr-gamemode-toggle`
-
-O script já está instalado no sistema. Para criá-lo do zero em outra máquina:
-
-```bash
-mkdir -p ~/.local/bin
-# Crie o arquivo ~/.local/bin/hypr-gamemode-toggle com o conteúdo completo
-# do script (ver ~/.local/bin/hypr-gamemode-toggle no sistema atual como referência)
-chmod +x ~/.local/bin/hypr-gamemode-toggle
-```
+### 2. Configurar o script expandido `~/.local/bin/hypr-gamemode-toggle`
 
 O script detecta o estado atual via `hyprctl getoption animations:enabled`:
-- Se animações **ligadas** → **ativa** o Game Mode (SIGSTOP nos processos, desliga blur/sombras/gaps, bypass EasyEffects, salva PowerMode e ativa Game Profile)
-- Se animações **desligadas** → **desativa** o Game Mode (SIGCONT, remove overrides via hyprconfigurator, restaura EasyEffects e restaura PowerMode anterior)
+- Se animações **ligadas** → **ativa** o Game Mode.
+- Se animações **desligadas** → **desativa** o Game Mode.
+
+No gerenciamento de processos, o `hypridle` é tratado separadamente dos processos de background para evitar que timers acumulados disparem ao descongelar:
+
+```bash
+BG_PROCESSES=("mpvpaper" "megasync" "tracker-miner-fs-3" "baloo_file")
+
+hypridle_frozen() {
+    local pid st
+    pid=$(pgrep -x hypridle | head -1)
+    [ -n "$pid" ] || return 1
+    st=$(ps -o stat= -p "$pid" 2>/dev/null | tr -d ' ')
+    case "$st" in
+        T*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+freeze_hypridle() {
+    pkill -STOP -x hypridle 2>/dev/null
+}
+
+restart_hypridle() {
+    # kill -9 em vez de SIGCONT: evita disparar listeners acumulados
+    pkill -9 -x hypridle 2>/dev/null
+    sleep 1
+    setsid hypridle >/dev/null 2>&1 </dev/null &
+    disown 2>/dev/null
+    sleep 1
+}
+```
+
+Ao ativar o modo:
+```bash
+freeze_hypridle
+```
+
+Ao desativar o modo:
+```bash
+if [ "$("$HOME/.local/bin/caffeine" state 2>/dev/null)" = "on" ] && hypridle_frozen; then
+    : # Caffeine é o dono do estado congelado; não mexe
+else
+    restart_hypridle
+fi
+```
 
 ### 3. Modificar o `GameModeToggle.qml` no repositório de dotfiles
 
-Edite `~/dots-hyprland/dots/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml` para que o botão chame o script diretamente via `Quickshell.execDetached`:
+Edite `~/dots-hyprland/dots/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml` para acionar o script via `Quickshell.execDetached`:
 
 ```qml
 import QtQuick
@@ -98,9 +133,9 @@ cd ~/dots-hyprland
 qs -c ii   # recarrega o Quickshell para o QML novo entrar em vigor
 ```
 
-### 5. O atalho de teclado `Super + Alt + G` já está configurado
+### 5. Configurar o atalho de teclado `Super + Alt + G`
 
-O atalho foi adicionado no tweak anterior em `~/.config/hypr/custom/keybinds.lua`:
+Em `~/.config/hypr/custom/keybinds.lua`:
 ```lua
 hl.bind("SUPER + ALT + G", hl.dsp.exec_cmd("~/.local/bin/hypr-gamemode-toggle"), {
     locked = true,
@@ -108,40 +143,46 @@ hl.bind("SUPER + ALT + G", hl.dsp.exec_cmd("~/.local/bin/hypr-gamemode-toggle"),
 })
 ```
 
-Se ainda não estiver lá, adicione-o e recarregue:
+Recarregar o compositor:
 ```bash
 hyprctl reload
 ```
 
 ## Arquivos tocados
-- `~/.local/bin/hypr-gamemode-toggle`: Script expandido com otimizações completas, bypass de áudio e gerenciamento de processos.
-- `~/dots-hyprland/dots/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml`: Integrado para acionar o script unificado.
-- `~/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml`: Sincronizado com a dotfile.
-- `~/Projects/bkp-das-coisa/hypr-gamemode-toggle.bak`: Backup do script original.
-- `~/Projects/bkp-das-coisa/GameModeToggle.qml.bak`: Backup do QML original.
-- `~/dots-hyprland/dots/.config/hypr/hyprland/execs.lua`: Comentado o autostart do EasyEffects para permitir controle via UI.
+- `~/.local/bin/hypr-gamemode-toggle`: Script de ativação/desativação, gerenciamento de processos e perfis de energia.
+- `~/dots-hyprland/dots/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml`: Toggle no Quickshell.
+- `~/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml`: Arquivo ativo sincronizado com a dotfile.
+- `~/.config/hypr/custom/keybinds.lua`: Atalho `Super + Alt + G`.
+- `~/dots-hyprland/dots/.config/hypr/hyprland/execs.lua`: Desativação do autostart automático do EasyEffects.
 
 ## Como verificar
-```fish
-# 1. Pressionar Super + Alt + G ou clicar no botão "Game mode" na sidebar:
+```bash
+# 1. Ativar o Game Mode via atalho ou comando:
 ~/.local/bin/hypr-gamemode-toggle
 
 # 2. Conferir se as animações foram desligadas:
 hyprctl getoption animations:enabled -j | jq '.bool'
 # false = Modo Jogo Ativo | true = Modo Normal
 
-# 3. Conferir o arquivo de overrides dinâmicos:
-cat ~/.config/hypr/hyprland/shellOverrides/main.lua
+# 3. Conferir se o hypridle foi pausado:
+ps -o pid,stat,cmd -p $(pgrep -x hypridle)
+# O campo STAT deve conter 'T'
 
-# 4. Conferir camadas do Quickshell ativas:
-hyprctl layers
+# 4. Aguardar alguns minutos e desativar:
+~/.local/bin/hypr-gamemode-toggle
+# A tela NÃO deve bloquear, suspender ou sair da sessão.
 ```
 
 ## Como reverter
 Basta restaurar os arquivos da pasta de backup:
 ```bash
-cp ~/Projects/bkp-das-coisa/hypr-gamemode-toggle.bak ~/.local/bin/hypr-gamemode-toggle
-cp ~/Projects/bkp-das-coisa/GameModeToggle.qml.bak ~/dots-hyprland/dots/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml
-cp ~/Projects/bkp-das-coisa/GameModeToggle.qml.bak ~/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml
+cp ~/Projects/optimization-cachyos/personal-tweeks/bkp/hypr-gamemode-toggle.2026-09-28.bak ~/.local/bin/hypr-gamemode-toggle
+cp ~/Projects/optimization-cachyos/personal-tweeks/bkp/GameModeToggle.qml.2026-09-28.bak ~/dots-hyprland/dots/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml
+cp ~/Projects/optimization-cachyos/personal-tweeks/bkp/GameModeToggle.qml.2026-09-28.bak ~/.config/quickshell/ii/modules/common/models/quickToggles/GameModeToggle.qml
 ```
-E descomentar o EasyEffects no `execs.lua` se desejar autostart novamente.
+
+## Histórico e Evolução
+
+- **2026-09-28 (Original)**: Criação da integração unificada entre Quickshell (`GameModeToggle.qml`), atalho `Super + Alt + G` e o script `hypr-gamemode-toggle`.
+- **2026-09-30 (Erratas)**: Correção do EasyEffects (bypass em vez de autostart) e integração dinâmica com `power-control`.
+- **2026-10-25 (Consolidação do Hypridle)**: Removido o `hypridle` do loop genérico de `SIGCONT`. O processo passou a ser encerrado com `kill -9` e reiniciado com `setsid`, eliminando a armadilha de timers acumulados que trancava a tela ou suspendia o sistema ao desativar o Game Mode. Respeito mútuo adicionado caso o Caffeine esteja ativo.

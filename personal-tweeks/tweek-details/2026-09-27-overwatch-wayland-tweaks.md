@@ -1,6 +1,6 @@
 # Otimização Wayland / Hyprland para Overwatch 2
 
-**Data**: 2026-09-27 · **Status**: Aplicado e funcionando
+**Data**: 2026-09-27 · **Status**: Aplicado — atualizado em 2026-09-28 e 2026-10-25
 
 ## Motivo
 Aplicar a segunda fase do guia de otimização de CachyOS, focada em resolver o input lag de micro-travadas do cursor do mouse, engasgos de processamento via Wayland e remover latências no servidor do compositor nativo para otimizar especificamente jogos competitivos como Overwatch 2, utilizando o repositório lógico-impulse/End-4.
@@ -83,3 +83,11 @@ hyprctl getoption render:direct_scanout
 
 ## Como reverter
 Basta retirar os blocos correspondentes nos arquivos customizados de Lua `general.lua` / `rules.lua` / `keybinds.lua`, e apagar o script em `~/.local/bin/hypr-gamemode-toggle`. Recarregue o compositor via `hyprctl reload`.
+
+## Atualizacoes
+
+- **2026-09-28** — o script do Game Mode foi expandido e integrado ao Quickshell.
+  Ver [2026-09-28-gamemode-quickshell-integration.md](2026-09-28-gamemode-quickshell-integration.md).
+- **2026-10-25** — corrigido o lock/suspend ao desativar o Game Mode. O `hypridle`
+  nao recebe mais `SIGCONT`; e reiniciado com `kill -9` + `setsid`. Ver
+  [2026-10-25-gamemode-hypridle-restart.md](2026-10-25-gamemode-hypridle-restart.md).

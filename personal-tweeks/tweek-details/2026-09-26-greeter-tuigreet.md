@@ -1,8 +1,7 @@
 # Greeter tuigreet (greetd) com autologin e tema dinamico
 
 **Data:** 2026-09-26
-**Status:** **Aplicado e validado.** Bloco de sudo executado, reboot real feito
-em 2026-09-26 17:29, autologin e cores confirmados.
+**Status:** **Legado / Substituído em 2026-10-25.** Revertido para autologin direto no tty1 (agetty) com lockscreen gráfico do Quickshell no boot. Ver [2026-09-26-autologin-hyprland-tty1.md](2026-09-26-autologin-hyprland-tty1.md).
 
 ## Motivo
 
@@ -21,7 +20,7 @@ sistema.
 
 `~/Projects/os-setup/telas-de-login-greeters.md` — 10 greeters comparados.
 O registro de pesquisa esta em
-[2026-09-26-tela-login-greeter-pesquisa.md](2026-09-26-tela-login-greeter-pesquisa.md).
+[2026-09-26-tela-login-greeter-pesquisa.md](../../../pesquisas/2026-09-26-tela-login-greeter-pesquisa.md).
 
 ### 2. Pacotes (instalado)
 

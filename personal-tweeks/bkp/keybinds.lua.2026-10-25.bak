@@ -1,0 +1,17 @@
+hl.bind("CTRL+SUPER+ALT+Slash", hl.dsp.exec_cmd("xdg-open ~/.config/hypr/custom/keybinds.lua"), {description = "Edit user keybinds"} )
+hl.bind("SUPER + K", hl.dsp.exec_raw("switchxkblayout current next"), { description = "Layout: alternar us/br" })
+hl.unbind("SUPER + B")
+hl.bind("SUPER + B", hl.dsp.exec_cmd(browser), { description = "App: Browser" })
+hl.unbind("SUPER + W")
+hl.bind("SUPER + W", hl.dsp.window.float({ action = "toggle" }), { description = "Window: Float/Tile" })
+
+-- Modo Jogo (Desativa blur/animações para Overwatch)
+hl.bind("SUPER + ALT + G", hl.dsp.exec_cmd("~/.local/bin/hypr-gamemode-toggle"), {
+    locked = true,
+    description = "[Utilities] game mode",
+})
+
+-- Forçar o bloqueio da sessão com atalho pulando o hypridle (necessário por causa do Caffeine pkill -STOP)
+hl.unbind("SUPER + L")
+hl.bind("SUPER + L", hl.dsp.exec_cmd("pidof hyprlock || hyprlock & loginctl lock-session"), { description = "Session: Lock (Bypass Caffeine)" })
+

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+# Toggle para Game Mode integrado ao ecossistema Hyprland / Quickshell
+# Usa o hyprconfigurator.py para aplicar overrides via shellOverrides/main.lua
+# Evita hyprctl reload destrutivo e mantém sincronia total com o Quickshell.
+
+# Detecta estado atual (true = animações ligadas/modo normal, false = game mode ativo)
+IS_ANIM_ENABLED=$(hyprctl getoption animations:enabled -j 2>/dev/null | jq -r '.bool // empty')
+if [ -z "$IS_ANIM_ENABLED" ]; then
+    # Fallback caso jq falhe
+    IS_ANIM_ENABLED=$(hyprctl getoption animations:enabled | awk 'NR==1{print $2}')
+fi
+
+CONFIGURATOR="$HOME/.config/quickshell/ii/scripts/hyprland/hyprconfigurator.py"
+SHELL_OVERRIDES="$HOME/.config/hypr/hyprland/shellOverrides/main.lua"
+
+if [ "$IS_ANIM_ENABLED" = "true" ] || [ "$IS_ANIM_ENABLED" = "1" ] ; then
+    # Ativando Game Mode (Zero latência, desativa blur/sombras/gaps/animações, ativa tearing)
+    if [ -f "$CONFIGURATOR" ]; then
+        python3 "$CONFIGURATOR" --file "$SHELL_OVERRIDES" \
+            --set "animations:enabled" 0 \
+            --set "decoration:shadow:enabled" 0 \
+            --set "decoration:blur:enabled" 0 \
+            --set "general:gaps_in" 0 \
+            --set "general:gaps_out" 0 \
+            --set "general:border_size" 1 \
+            --set "decoration:rounding" 0 \
+            --set "general:allow_tearing" 1 >/dev/null 2>&1
+    else
+        hyprctl --batch "\
+            keyword animations:enabled 0;\
+            keyword decoration:shadow:enabled 0;\
+            keyword decoration:blur:enabled 0;\
+            keyword general:gaps_in 0;\
+            keyword general:gaps_out 0;\
+            keyword general:border_size 1;\
+            keyword decoration:rounding 0;\
+            keyword general:allow_tearing 1"
+    fi
+    notify-send -t 2000 -u low -i "gamepad" "Game Mode" "Ativado - Performance Máxima"
+    exit 0
+else
+    # Desativando Game Mode (Restaura overrides de forma suave sem derrubar Quickshell/Hyprland)
+    if [ -f "$CONFIGURATOR" ]; then
+        python3 "$CONFIGURATOR" --file "$SHELL_OVERRIDES" \
+            --reset "animations:enabled" \
+            --reset "decoration:shadow:enabled" \
+            --reset "decoration:blur:enabled" \
+            --reset "general:gaps_in" \
+            --reset "general:gaps_out" \
+            --reset "general:border_size" \
+            --reset "decoration:rounding" \
+            --reset "general:allow_tearing" >/dev/null 2>&1
+    else
+        hyprctl reload
+    fi
+    notify-send -t 2000 -u low -i "gamepad" "Game Mode" "Desativado - Configuração Normal"
+    exit 0
+fi

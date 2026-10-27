@@ -1,92 +1,68 @@
-# Autologin do Hyprland no tty1
+# Autologin do Hyprland no tty1 com Lockscreen Quickshell
 
-**Data:** 2026-09-26
-**Status:** Aplicado e validado — mas **deixou de ser o caminho do boot**.
-Desde 2026-09-26 17:29 o greetd segura o tty1 e quem faz o autologin e o
-`[initial_session]` dele. Este script virou **fallback**: so tem efeito se o
-greetd for desabilitado.
+**Data:** 2026-09-26  
+**Status:** **Aplicado e consolidado** (atualizado em 2026-10-25)
 
 ## Motivo
 
-Ao ligar o notebook, o login automático no tty1 funcionava, mas o Hyprland
-**não** subia: aparecia a tela preta com o prompt e era preciso digitar
-`start-hyprland` manualmente.
+Inicializar o sistema de forma instantânea e limpa (1 a 2 segundos), eliminando gerenciadores de exibição intermediários (display managers como GDM, SDDM ou greetd/tuigreet) e telas pretas. O login no console `tty1` ocorre automaticamente e silenciosamente, subindo o Hyprland de imediato. A segurança e autenticação do notebook ficam a cargo da tela de bloqueio gráfica moderna do Quickshell (`launchOnStartup: true`), garantindo uma interface visual estilizada com Material You e exigindo apenas uma senha ao ligar.
 
-## Estado atual (2026-09-26 17:29, pos-greetd)
+## Arquitetura da Solução
 
-O greetd esta `enabled` e `active`, e declara `Conflicts=getty@tty1.service`.
-Isso significa que o boot **nao passa mais por este script**:
+O fluxo completo de inicialização é composto por 4 etapas coordenadas:
 
-- boot comecou as `17:29:18`, greetd subiu as `17:29:32`
-- `~/.cache/hyprland.log` foi modificado as `17:28:57` — **antes** do boot
-- logo o `auto-Hypr.fish` nao rodou neste boot
+1. **Autologin silencioso no console (`agetty`)**:
+   O systemd executa o `getty@tty1.service` com drop-in de autologin configurado para o usuário `cailoop` sem limpar a tela (`--noclear`).
+2. **Disparo automático do ambiente gráfico (`fish`)**:
+   Ao iniciar a sessão no tty1, o shell carrega `~/.config/fish/config.fish`, que faz o `source` explícito de `~/.config/fish/auto-Hypr.fish`.
+3. **Execução do compositor (`start-hyprland`)**:
+   O `auto-Hypr.fish` valida que a variável `$DISPLAY` está vazia e `$XDG_VTNR` é igual a 1, chamando `exec start-hyprland > ~/.cache/hyprland.log 2>&1`.
+4. **Bloqueio gráfico no boot (`Quickshell`)**:
+   O compositor carrega o Quickshell. Com a chave `"launchOnStartup": true` em `~/.config/illogical-impulse/config.json`, o painel tranca a sessão imediatamente, apresentando o relógio, controles de mídia e campo de senha integrado ao tema do sistema.
 
-Quem subiu a sessao foi o `[initial_session]` do greetd, que roda
-`sleep 2 && exec start-hyprland` via `sh(1)`, sem passar por shell de login.
+## Histórico e Evolução
 
-O script continua no disco e continua correto, mas so importa em dois casos:
-
-1. o greetd for desabilitado (`sudo systemctl disable greetd`)
-2. o fallback for para ambiente sem greetd
-
-Nao apagar. Se um dia o `getty@tty1` voltar a ser o dono do tty1, este
-script e o que faz o Hyprland subir sem digitar nada.
-
-## Causa raiz
-
-O script que faz o autologin existia e estava correto:
-
-`~/.config/fish/auto-Hypr.fish`
-```fish
-# Auto start Hyprland on tty1
-if test -z "$DISPLAY" ;and test "$XDG_VTNR" -eq 1
-    mkdir -p ~/.cache
-    exec start-hyprland > ~/.cache/hyprland.log 2>&1
-end
-```
-
-O problema é a **localização** dele. O fish só carrega automaticamente:
-
-- `~/.config/fish/config.fish` (arquivo principal)
-- `~/.config/fish/conf.d/*.fish` (autoload)
-- `~/.config/fish/functions/*.fish` (lazy load)
-
-Arquivos `.fish` soltos na **raiz** de `~/.config/fish/` — como estava o
-`auto-Hypr.fish` — **nunca são executados**. Não havia `conf.d/` no repo, nem
-um `source` dele no `config.fish`. O script era código morto.
-
-## O que foi feito
-
-Editado no repositório de dotfiles e sincronizado com `./setup install-files`.
-No topo de `config.fish`, **antes** do bloco `if status is-interactive`:
-
-```fish
-# Auto start Hyprland on tty1.
-# fish only auto-sources config.fish and conf.d/*.fish, so this file sitting
-# in the config root would never run. Source it explicitly.
-if test -f ~/.config/fish/auto-Hypr.fish
-    source ~/.config/fish/auto-Hypr.fish
-end
-```
-
-Foi escolhido o `source` em vez de mover o arquivo para `conf.d/` para manter
-o `auto-Hypr.fish` no mesmo lugar onde o resto da dotfile espera que ele
-esteja (e preserva a variante `~/.config/zshrc.d/auto-Hypr.sh` para quem usa
-zsh).
+- **2026-09-26 (Original)**: O script `auto-Hypr.fish` ficava na raiz de `~/.config/fish/`, onde o fish não carrega nada automaticamente. Foi adicionado o `source` explícito no topo de `~/dots-hyprland/dots/.config/fish/config.fish`.
+- **2026-09-26 (Experimento Greetd/Tuigreet)**: Foi testado o uso de `greetd` + `tuigreet` para oferecer uma tela de login no console. Detalhes arquivados em [2026-09-26-greeter-tuigreet.md](2026-09-26-greeter-tuigreet.md).
+- **2026-10-25 (Consolidação Definitiva)**: O `greetd` foi desativado devido a problemas de concorrência com o DBus, limitação de cores do TTY e ocorrência de tela de bloqueio dupla (greetd + quickshell). O sistema retornou ao autologin direto via `agetty` com proteção por Quickshell on launch, absorvendo a configuração e consolidando a tweak em fonte única.
 
 ## Como realizar (Passo a passo)
 
-> ⚠️ **Atenção:** Desde 2026-09-26 o greetd gerencia o boot. Este tweak só importa se o greetd for desabilitado. Os passos abaixo documentam como replicar caso o getty@tty1 volte a ser o dono do tty1.
+### 1. Configurar o autologin no systemd (agetty tty1)
 
-### 1. Confirmar que o `auto-Hypr.fish` existe no lugar correto
+Criar o diretório de override e o arquivo de drop-in para o `getty@tty1`:
 
 ```bash
-ls ~/.config/fish/auto-Hypr.fish
-# Conteúdo esperado:
-cat ~/.config/fish/auto-Hypr.fish
+sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
+sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=-/usr/bin/agetty -o '-p -f -- \\u' --noclear --autologin cailoop %I $TERM
+Type=idle
+EOF
 ```
 
-O conteúdo deve ser:
+### 2. Desativar daemons conflitantes e ativar o getty@tty1
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl disable --now greetd.service 2>/dev/null || true
+sudo systemctl enable getty@tty1.service
+```
+
+### 3. Garantir o disparo no fish (`auto-Hypr.fish`)
+
+No arquivo `~/dots-hyprland/dots/.config/fish/config.fish`, certificar-se de que o bloco de source está no topo, antes de `status is-interactive`:
+
+```fish
+# Auto start Hyprland on tty1.
+if test -f ~/.config/fish/auto-Hypr.fish
+    source ~/.config/fish/auto-Hypr.fish
+end
+```
+
+E conferir o conteúdo de `~/.config/fish/auto-Hypr.fish`:
+
 ```fish
 # Auto start Hyprland on tty1
 if test -z "$DISPLAY" ;and test "$XDG_VTNR" -eq 1
@@ -95,90 +71,50 @@ if test -z "$DISPLAY" ;and test "$XDG_VTNR" -eq 1
 end
 ```
 
-### 2. Adicionar o `source` no topo do `config.fish` do repositório
-
-Edite `~/dots-hyprland/dots/.config/fish/config.fish` e adicione **antes** do bloco `if status is-interactive`:
-
-```fish
-# Auto start Hyprland on tty1.
-# fish only auto-sources config.fish and conf.d/*.fish, so this file sitting
-# in the config root would never run. Source it explicitly.
-if test -f ~/.config/fish/auto-Hypr.fish
-    source ~/.config/fish/auto-Hypr.fish
-end
-```
-
-### 3. Sincronizar com o setup
-
+Se alterado o arquivo de dotfiles, sincronizar:
 ```bash
 cd ~/dots-hyprland
 ./setup install-files -f --skip-backup --skip-allgreeting
 ```
 
-### 4. Verificar sem reiniciar (com stub)
+### 4. Ativar o Lockscreen on Launch no Quickshell
 
-```bash
-mkdir -p /tmp/stub
-printf '#!/bin/sh\necho "[STUB] start-hyprland CHAMOU"\n' > /tmp/stub/start-hyprland
-chmod +x /tmp/stub/start-hyprland
-rm -f ~/.cache/hyprland.log
-env -u DISPLAY -u WAYLAND_DISPLAY XDG_VTNR=1 PATH="/tmp/stub:$PATH" fish -i -c true
-cat ~/.cache/hyprland.log   # deve mostrar a linha do stub
-```
+Em `~/.config/illogical-impulse/config.json`, na seção de lockscreen, definir:
 
-Teste negativo (não deve disparar fora do tty1):
-```bash
-env -u DISPLAY -u WAYLAND_DISPLAY XDG_VTNR=2 PATH="/tmp/stub:$PATH" fish -i -c true
-# ~/.cache/hyprland.log NÃO deve ser modificado
-```
-
-### 5. Verificar definitivamente: reiniciar o sistema
-
-```bash
-reboot
-# Não deve aparecer prompt para digitar start-hyprland
+```json
+"launchOnStartup": true,
 ```
 
 ## Arquivos tocados
 
-- `~/dots-hyprland/dots/.config/fish/config.fish` (fonte da mudança)
-- `~/.config/fish/config.fish` (gerado por `./setup install-files`)
-
-Nada foi editado direto em `~/.config`, conforme as regras da dotfile.
+- `/etc/systemd/system/getty@tty1.service.d/autologin.conf` (override do systemd para login sem senha no tty1)
+- `~/dots-hyprland/dots/.config/fish/config.fish` (repositório de dotfiles)
+- `~/.config/fish/config.fish` (configuração ativa do shell)
+- `~/.config/fish/auto-Hypr.fish` (rotina de verificação de VT e inicialização do Hyprland)
+- `~/.config/illogical-impulse/config.json` (configuração do lockscreen gráfico da Quickshell)
 
 ## Como verificar
 
-**Teste real (o que importa):** reiniciar a máquina. Não deve pedir
-`start-hyprland`.
-
-**Teste sem reboot**, simulando o login do tty1 com um stub no lugar do
-Hyprland (para não subir uma segunda sessão):
-
-```sh
-mkdir -p /tmp/stub
-printf '#!/bin/sh\necho "[STUB] start-hyprland CHAMOU"\n' > /tmp/stub/start-hyprland
-chmod +x /tmp/stub/start-hyprland
-rm -f ~/.cache/hyprland.log
-env -u DISPLAY -u WAYLAND_DISPLAY XDG_VTNR=1 PATH="/tmp/stub:$PATH" fish -i -c true
-cat ~/.cache/hyprland.log    # deve mostrar a linha do stub
-```
-
-O `auto-Hypr.fish` redireciona a saída para `~/.cache/hyprland.log`, então é
-aí que aparece o resultado — e é também o log para diagnosticar falha de
-boot do Hyprland.
-
-Verificar o caso negativo (não deve chamar fora do tty1): mesma comando com
-`XDG_VTNR=2` e confirme que `~/.cache/hyprland.log` **não** é criado.
+1. Reiniciar a máquina:
+   ```bash
+   sudo reboot
+   ```
+2. Observar o boot:
+   - Nenhum prompt textual ou menu de texto TUI deve aparecer.
+   - O console faz autologin imediato e a tela sobe direto no ambiente gráfico.
+   - O Quickshell surge bloqueado com a tela de fundo desfocada e o campo de senha.
+3. Digite sua senha: a sessão desbloqueia diretamente na área de trabalho.
 
 ## Como reverter
 
-Remover o bloco de 6 linhas do `source` no topo do `config.fish` do repo e
-rodar `./setup install-files -f --skip-backup`.
-
-## Nota
-
-O `getty@tty1.service` da máquina está com o template padrão do systemd
-(`agetty --noreset --noclear - ${TERM}`), sem override de autologin em
-`/etc/systemd/system/`. Ou seja, o autologin vem de outro lugar (provavelmente
-`/etc/inittab` ou config do pacote CachyOS). Funciona, mas não está documentado
-em lugar nenhum do systemd.
+1. Para voltar ao prompt tradicional de login no tty1 (pedindo usuário e senha no console):
+   ```bash
+   sudo rm -rf /etc/systemd/system/getty@tty1.service.d
+   sudo systemctl daemon-reload
+   sudo systemctl restart getty@tty1.service
+   ```
+2. Para desativar o bloqueio de tela automático no boot:
+   Alterar em `~/.config/illogical-impulse/config.json`:
+   ```json
+   "launchOnStartup": false,
+   ```

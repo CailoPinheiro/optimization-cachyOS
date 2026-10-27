@@ -1,0 +1,7 @@
+[Unit]
+Description=Re-assert caffeine keep-awake state if it drifted
+Documentation=file://%h/Projects/personal-tweeks-list/tweek-details/2026-09-26-caffeine-lid-e-selfheal.md
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/caffeine reconcile

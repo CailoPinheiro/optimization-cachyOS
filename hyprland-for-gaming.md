@@ -73,39 +73,31 @@ hl.monitor({
 
 ## 4 - Script de Game Mode (Toggle)
 
-Desliga firulas visuais (blur, sombras, gaps) enquanto joga. Crie o executavel:
+O script real vive em `~/.local/bin/hypr-gamemode-toggle` e e mais amplo que o
+exemplo antigo: troca o perfil de energia (`sudo power-control`), chama o
+`hyprconfigurator.py`, desliga animacoes/blur/sombras/gaps, congela processos de
+fundo e reinicia o `hypridle` sem `SIGCONT` ao desativar.
+
+O estado das animacoes e lido como booleano (`.bool`), nao como `"int"`:
 
 ```bash
-nano ~/.local/bin/hypr-gamemode-toggle
-```
+IS_ANIM_ENABLED=$(hyprctl getoption animations:enabled -j 2>/dev/null | jq -r '.bool // empty')
+if [ -z "$IS_ANIM_ENABLED" ]; then
+    IS_ANIM_ENABLED=$(hyprctl getoption animations:enabled 2>/dev/null | awk 'NR==1{print $2}')
+fi
 
-Cole o codigo:
-
-```bash
-#!/usr/bin/env bash
-ANIMATIONS="$(hyprctl getoption animations:enabled -j | grep -oP '"int":\s*\K\d')"
-if [ "$ANIMATIONS" = "1" ]; then
-    hyprctl --batch "\
-        keyword animations:enabled 0;\
-        keyword decoration:blur:enabled 0;\
-        keyword decoration:shadow:enabled 0;\
-        keyword general:gaps_in 0;\
-        keyword general:gaps_out 0;\
-        keyword decoration:rounding 0"
-    echo "Game Mode: ON"
+if [ "$IS_ANIM_ENABLED" = "true" ] || [ "$IS_ANIM_ENABLED" = "1" ]; then
+    # ativar Game Mode
 else
-    hyprctl reload
-    echo "Game Mode: OFF"
+    # desativar Game Mode
 fi
 ```
 
-De permissao:
+O script completo, incluindo o tratamento do `hypridle` e dos processos de
+fundo, esta em
+[personal-tweeks/tweek-details/2026-10-25-gamemode-hypridle-restart.md](personal-tweeks/tweek-details/2026-10-25-gamemode-hypridle-restart.md).
 
-```bash
-chmod +x ~/.local/bin/hypr-gamemode-toggle
-```
-
-Adicione o atalho em `~/.config/hypr/custom/keybinds.lua`:
+O atalho e `Super + Alt + G` (tambem existe o QuickToggle no Quickshell):
 
 ```lua
 hl.bind("SUPER + ALT + G", hl.dsp.exec_cmd("~/.local/bin/hypr-gamemode-toggle"), {
@@ -113,6 +105,9 @@ hl.bind("SUPER + ALT + G", hl.dsp.exec_cmd("~/.local/bin/hypr-gamemode-toggle"),
     description = "[Utilities] game mode",
 })
 ```
+
+Nao use `SIGCONT` no `hypridle`: os timers continuam envelhecendo enquanto o
+processo esta parado e disparam todos de uma vez ao retomar.
 
 ## 5 - Polling Rate do Mouse (Opcional)
 

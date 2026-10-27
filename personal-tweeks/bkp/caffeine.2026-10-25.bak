@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+# caffeine - keep the system awake for as long as it is enabled.
+#
+# Why a script instead of the Quickshell "Keep awake" toggle: that toggle uses
+# the Wayland ext_idle_inhibit_v1 protocol, which only stops the compositor from
+# sending idle notifications to Quickshell itself. hypridle is a separate process
+# with its own timers, so the screen still blanks and the session still
+# locks/suspends. This script acts on hypridle and on systemd-logind directly.
+#
+# Two layers:
+#   1. hypridle is frozen with SIGSTOP, so its three listeners (lock / dpms-off /
+#      suspend) stop firing. On disable we *restart* it instead of SIGCONT,
+#      because its timeouts keep ageing while frozen and would all fire at once
+#      the moment it resumed.
+#   2. a systemd-logind inhibitor blocking idle and suspend coming from
+#      anywhere (systemctl suspend, the power menu).
+#
+# The lid switch is deliberately NOT covered: it keeps the stock behaviour
+# (HandleLidSwitch=suspend, and LidSwitchIgnoreInhibited=yes ignores our
+# high-level lock anyway). Closing the lid always suspends, with or without
+# caffeine. See
+# ~/Projects/personal-tweeks-list/2026-09-26-caffeine-lid-e-selfheal.md
+# for the lock that used to override this and why it was removed.
+#
+# Subcommands: on | off | toggle | state | status | reconcile
+# See ~/Projects/personal-tweeks-list/2026-09-26-caffeine-keep-awake.md
+
+set -u
+
+STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/caffeine"
+
+# The --why string doubles as our pgrep marker, so the inhibitor is always
+# located by its own command line. A stale pid file can never make us lose
+# track of it.
+INHIB_MARKER="caffeine mode enabled"
+INHIB_PATTERN="^systemd-inhibit .*${INHIB_MARKER}"
+
+# --------------------------------------------------------------- state file
+
+read_state() {
+    local v=""
+    [ -f "$STATE_FILE" ] && v=$(cat "$STATE_FILE" 2>/dev/null)
+    [ -n "$v" ] || v="off"
+    printf '%s' "$v"
+}
+
+write_state() {
+    mkdir -p "$(dirname "$STATE_FILE")"
+    printf '%s' "$1" >"$STATE_FILE"
+}
+
+# ------------------------------------------------------------ logind layer
+
+inhibitor_pid() {
+    pgrep -f "$INHIB_PATTERN" 2>/dev/null | head -1
+}
+
+inhibitor_alive() {
+    local pid
+    pid=$(inhibitor_pid)
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+start_inhibitor() {
+    stop_inhibitor
+    # setsid is load-bearing: the inhibitor has to outlive whoever called this
+    # script. Without it the child dies together with the Quickshell Process
+    # that ran "caffeine toggle", and the logind blocker is silently released
+    # while the UI still claims caffeine is on.
+    #
+    # The two --what values cover two independent things:
+    #   idle  - blocks the high-level idle inhibitor (screen blanking)
+    #   sleep - blocks suspend/hibernate from anywhere
+    #
+    # No handle-lid-switch here on purpose. That is a LOW-LEVEL lock, and
+    # logind(1) honours low-level locks *irrespective of LidSwitchIgnoreInhibited*,
+    # so adding it silently overrode HandleLidSwitch. It was removed to restore
+    # the stock behaviour: the lid always suspends, caffeine or not.
+    setsid systemd-inhibit --what=idle:sleep --mode=block \
+        --who=caffeine --why="$INHIB_MARKER" \
+        sleep infinity >/dev/null 2>&1 </dev/null &
+    disown 2>/dev/null
+    # setsid may or may not fork, so resolve the real pid by command line
+    # instead of trusting $!.
+    local i pid
+    for i in $(seq 1 15); do
+        pid=$(inhibitor_pid)
+        if [ -n "$pid" ]; then
+            return 0
+        fi
+        sleep 0.2
+    done
+    return 1
+}
+
+stop_inhibitor() {
+    local pid
+    for pid in $(pgrep -f "$INHIB_PATTERN" 2>/dev/null); do
+        kill "$pid" 2>/dev/null
+    done
+}
+
+# ------------------------------------------------------------ hypridle layer
+
+hypridle_pid() {
+    pgrep -x hypridle 2>/dev/null | head -1
+}
+
+hypridle_running() {
+    pgrep -x hypridle >/dev/null 2>&1
+}
+
+hypridle_frozen() {
+    local pid st
+    pid=$(hypridle_pid)
+    [ -n "$pid" ] || return 1
+    st=$(ps -o stat= -p "$pid" 2>/dev/null | tr -d ' ')
+    case "$st" in
+        T*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+freeze_hypridle() {
+    pkill -STOP -x hypridle 2>/dev/null
+}
+
+# SIGCONT alone is not enough: while frozen, hypridle's timeouts keep ageing, so
+# the moment it resumes every pending listener fires at once and the screen
+# blanks immediately. Restart it instead so all timeouts start fresh from zero.
+restart_hypridle() {
+    pkill -9 -x hypridle 2>/dev/null
+
+    sleep 1
+    setsid hypridle >/dev/null 2>&1 </dev/null &
+    disown 2>/dev/null
+    sleep 1
+    hypridle_running
+}
+
+respawn_hypridle() {
+    setsid hypridle >/dev/null 2>&1 </dev/null &
+    disown 2>/dev/null
+}
+
+# ------------------------------------------------------------------- actions
+
+# Idempotent: brings reality in line with "on" without touching the state file.
+# Returns 0 if it had to change something, 1 if everything was already in place.
+apply_on() {
+    local changed=0
+    if hypridle_running; then
+        if ! hypridle_frozen; then
+            freeze_hypridle
+            changed=1
+        fi
+    fi
+    if ! inhibitor_alive; then
+        if start_inhibitor; then
+            changed=1
+        fi
+    fi
+    return "$changed"
+}
+
+enable() {
+    write_state "on"
+    apply_on >/dev/null
+    echo "on"
+}
+
+disable() {
+    write_state "off"
+    if hypridle_frozen; then
+        # we were the ones who froze it, so give it a clean set of timeouts
+        restart_hypridle
+    elif ! hypridle_running; then
+        # nobody froze it and it is gone: bring it back so idle can work again
+        respawn_hypridle
+    fi
+    stop_inhibitor
+    echo "off"
+}
+
+# Called by the systemd --user timer: quietly re-assert "on" if reality drifted
+# (hypridle restarted, inhibitor lost). Silent by design.
+reconcile() {
+    if [ "$(read_state)" = "on" ]; then
+        apply_on >/dev/null
+    fi
+}
+
+# Prints just "on" or "off" so callers can parse it directly.
+state() {
+    read_state
+    echo
+}
+
+status() {
+    local state hypridle frozen inhib pid problems=""
+    state=$(read_state)
+
+    if pid=$(hypridle_pid) && [ -n "$pid" ]; then
+        hypridle="running (pid $pid)"
+    else
+        hypridle="stopped"
+    fi
+
+    if hypridle_frozen; then frozen="yes"; else frozen="no"; fi
+
+    if pid=$(inhibitor_pid) && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        inhib="yes (pid $pid)"
+    else
+        inhib="no"
+    fi
+
+    if [ "$state" = "on" ]; then
+        [ "$frozen" = "yes" ] || problems="$problems hypridle-not-frozen"
+        [ "$hypridle" = "stopped" ] && problems="$problems hypridle-stopped"
+        case "$inhib" in no*) problems="$problems logind-inhibitor-missing" ;; esac
+    fi
+
+    echo "caffeine: $state | hypridle: $hypridle (frozen: $frozen) | logind inhibitor: $inhib"
+    if [ -n "$problems" ]; then
+        echo "PROBLEMA:$problems"
+        return 1
+    fi
+    return 0
+}
+
+toggle() {
+    if [ "$(read_state)" = "on" ]; then
+        disable
+    else
+        enable
+    fi
+}
+
+case "${1:-toggle}" in
+    on | enable) enable ;;
+    off | disable) disable ;;
+    toggle) toggle ;;
+    state) state ;;
+    status) status ;;
+    reconcile) reconcile ;;
+    *)
+        echo "usage: caffeine [on|off|toggle|state|status|reconcile]" >&2
+        exit 1
+        ;;
+esac
