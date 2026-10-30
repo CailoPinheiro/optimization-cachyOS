@@ -30,9 +30,28 @@ Estrutura:
 | 2026-09-30 | Integração e Tematização Dinâmica do Matugen em Aplicativos (Xed, MarkText, qBittorrent) | **Aplicado e funcionando** | [2026-09-30-matugen-apps-theming-integration.md](tweek-details/2026-09-30-matugen-apps-theming-integration.md) |
 | 2026-10-05 | Minecraft Dungeons II: chave `GamingServices\ForceUseLocalServices` no prefixo do Hydra | **Aplicado — aguardando teste** | [2026-10-05-minecraft-dungeons-ii-gamingservices-reg.md](tweek-details/2026-10-05-minecraft-dungeons-ii-gamingservices-reg.md) |
 | 2026-10-25 | Super + L: lock da Quickshell com fallback para hyprlock | **Aplicado e funcionando** | [2026-10-25-super-l-quickshell-lock.md](tweek-details/2026-10-25-super-l-quickshell-lock.md) |
+| 2026-10-30 | Hyprland 0.57: fix de erro no shadow render_power (upstream usa 10, maximo e 4) | **Aplicado e funcionando** | [2026-10-30-hyprland-shadow-render-power-fix.md](tweek-details/2026-10-30-hyprland-shadow-render-power-fix.md) |
+| 2026-10-30 | Hyprland 0.57: correcao do disparo indevido do search ao soltar Super (chording fix) | **Aplicado (Provisorio)** | [2026-10-30-hyprland-super-chording-fix.md](provisory/2026-10-30-hyprland-super-chording-fix.md) |
 
 ## Decisoes que nao devem ser revertidas sem o usuario pedir
 
+- **2026-10-30 - o listener de interrupcao de tecla do Super no `custom/keybinds.lua` deve ser mantido ate o merge upstream.**
+  O Hyprland 0.57 removeu os binds de interrupcao de atalhos combinados com Super.
+  Sem o dispatch de `quickshell:searchToggleReleaseInterrupt` via `hl.on("input.keyboard.key")`
+  e binds transparentes de mouse no `~/.config/hypr/custom/keybinds.lua`, qualquer
+  atalho como `Super + T` ou `Super + V` faz o overview/search abrir indevidamente
+  ao soltar a tecla. Nao remover essas linhas achando que sao redundantes. Detalhes em
+  [2026-10-30-hyprland-super-chording-fix.md](provisory/2026-10-30-hyprland-super-chording-fix.md).
+- **2026-10-30 - o `render_power` da sombra no `general.lua` da dotfile fica em 4, nao 10.**
+  O end-4 usa `render_power = 10` no `hyprland/general.lua`, mas o Hyprland
+  0.57+ valida `decoration:shadow:render_power` no range 1..4 e REPUDIA o 10:
+  popup "Your config has errors" + opcao descartada (fica no default 3, sem
+  sombra customizada). O parche local no clone (`~/dots-hyprland/.../
+  general.lua` linha 98, 10 -> 4, NAO committado) e o mecanismo correto, pois
+  o `setup install-files` copia DO clone e o override no `custom/` nao remove
+  o erro do parse. Se um futuro `git pull` ressuscitar o 10, re-aplicar o
+  `sed` de 1 linha do doc. Detalhes em
+  [2026-10-30-hyprland-shadow-render-power-fix.md](tweek-details/2026-10-30-hyprland-shadow-render-power-fix.md).
 - **2026-09-26 - o comportamento padrao do idle foi mantido de proposito.** Os 3
   `listener` do `hypridle.conf` (lock 5min / dpms-off 10min / suspend 15min)
   **nao** devem ser removidos. O botao de cafe existe para as *excecoes*
