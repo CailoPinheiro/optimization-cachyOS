@@ -25,15 +25,23 @@ Estrutura:
 | 2026-09-28 | Fastfetch: Sorteio Aleatório de Logos (ASCII/ANSI e Imagens) | **Aplicado e funcionando** | [2026-09-28-fastfetch-random-logo.md](tweek-details/2026-09-28-fastfetch-random-logo.md) |
 | 2026-09-28 | Terraria: Resolução de Performance (Turbo Boost e MangoHud) | **Aplicado** | [2026-09-28-terraria-performance-fix.md](tweek-details/2026-09-28-terraria-performance-fix.md) |
 | 2026-09-28 | Power Control: Inteligência Híbrida (P-Cores e E-Cores) | **Aplicado no Instalador** | [2026-09-28-power-control-hibrido.md](updated-tweeks/2026-09-28-power-control-hibrido.md) |
-| 2026-09-30 | Animated Wallpaper (mpvpaper) e Correção Total de Crashes no Shell | **Aplicado e funcionando** | [2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md](tweek-details/2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md) |
+| 2026-09-30 | Animated Wallpaper (mpvpaper), Suporte a GIF e Correção Total de Crashes no Shell | **Aplicado e funcionando** | [2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md](tweek-details/2026-09-30-animated-wallpaper-mpvpaper-shell-fix.md) |
 | 2026-09-30 | Caffeine: Auto-Cura (Self-Heal), Unit do Inhibitor e Correção de Lock | **Aplicado e consolidado** | [2026-09-30-caffeine-selfheal-e-lock-fix.md](tweek-details/2026-09-30-caffeine-selfheal-e-lock-fix.md) |
 | 2026-09-30 | Integração e Tematização Dinâmica do Matugen em Aplicativos (Xed, MarkText, qBittorrent) | **Aplicado e funcionando** | [2026-09-30-matugen-apps-theming-integration.md](tweek-details/2026-09-30-matugen-apps-theming-integration.md) |
 | 2026-10-05 | Minecraft Dungeons II: chave `GamingServices\ForceUseLocalServices` no prefixo do Hydra | **Aplicado — aguardando teste** | [2026-10-05-minecraft-dungeons-ii-gamingservices-reg.md](tweek-details/2026-10-05-minecraft-dungeons-ii-gamingservices-reg.md) |
 | 2026-10-25 | Super + L: lock da Quickshell com fallback para hyprlock | **Aplicado e funcionando** | [2026-10-25-super-l-quickshell-lock.md](tweek-details/2026-10-25-super-l-quickshell-lock.md) |
 | 2026-10-30 | Hyprland 0.57: fix de erro no shadow render_power (upstream usa 10, maximo e 4) | **Aplicado e funcionando** | [2026-10-30-hyprland-shadow-render-power-fix.md](tweek-details/2026-10-30-hyprland-shadow-render-power-fix.md) |
 | 2026-10-30 | Hyprland 0.57: correcao do disparo indevido do search ao soltar Super (chording fix) | **Aplicado (Provisorio)** | [2026-10-30-hyprland-super-chording-fix.md](provisory/2026-10-30-hyprland-super-chording-fix.md) |
+| 2026-11-03 | EasyEffects: calibração de microfone estilo Discord (Broadcast / Krisp) | **Aplicado e funcionando** | [2026-11-03-easyeffects-microfone-qualidade-discord.md](tweek-details/2026-11-03-easyeffects-microfone-qualidade-discord.md) |
 
 ## Decisoes que nao devem ser revertidas sem o usuario pedir
+
+- **2026-11-03 - a cadeia de entrada do EasyEffects deve manter a supressão antes do compressor.**
+  A supressão de ruído (DeepFilterNet/RNNoise) e o filtro passa-alta (high-pass) precisam
+  permanecer no início do encadeamento de efeitos de microfone. Inverter a ordem e comprimir
+  antes da redução de ruído eleva o piso de ruído (noise floor) e causa degradação dos formantes
+  da voz na filtragem neural. Detalhes em
+  [2026-11-03-easyeffects-microfone-qualidade-discord.md](tweek-details/2026-11-03-easyeffects-microfone-qualidade-discord.md).
 
 - **2026-10-30 - o listener de interrupcao de tecla do Super no `custom/keybinds.lua` deve ser mantido ate o merge upstream.**
   O Hyprland 0.57 removeu os binds de interrupcao de atalhos combinados com Super.
