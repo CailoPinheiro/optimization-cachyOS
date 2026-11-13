@@ -12,12 +12,6 @@ unlock-deadlock/
 ├── otimizacao-deadlock.md     guia: como aplicar, opções da Steam, mods, reversão
 ├── gameinfo.gi                config principal (OptimizationLock 1.5.1)
 ├── video.txt                  perfil de vídeo mínimo (iGPU)
-├── addons/                    mods .vpk de desempenho
-│   ├── pak01_dir.vpk          Optimized Soul Container
-│   ├── pak02_dir.vpk          Clutter be Gone
-│   ├── pak26_dir.vpk          Sinner Light Fix
-│   ├── pak89_dir.vpk          Vindicta Scope Downscale
-│   └── pak97_dir.vpk          Blur Disabler
 └── extra/                     configs alternativas, só para consulta
     ├── config-lina-deadlock/
     │   └── gameinfo.gi        OptimizationLock 1.5 (build antiga do jogo)
@@ -25,7 +19,7 @@ unlock-deadlock/
         ├── gameinfo.gi
         ├── video.txt
         ├── autoexec.cfg
-        └── pak01_dir.vpk      texturas a ~10% do tamanho
+        └── pak01_dir.vpk      texturas a ~10% do tamanho (só local, fora do git)
 ```
 
 ## O que é cada arquivo
@@ -34,13 +28,21 @@ unlock-deadlock/
 |---|---|---|
 | `gameinfo.gi` | `steamapps/common/Deadlock/game/citadel/` | Injeta ~500 cvars de desempenho no boot. |
 | `video.txt` | `userdata/<STEAM_ID>/1422450/local/cfg/` | Configurações de vídeo (render interno reduzido, sombras e efeitos desligados). |
-| `addons/*.vpk` | `steamapps/common/Deadlock/game/citadel/addons/` | Mods que trocam modelos, texturas e UI por versões mais leves. |
 | `extra/` | nenhum | Referência. Não instalar inteiro: `gameinfo.gi` de build antiga e valores pensados para outro hardware. |
+
+## Mods (.vpk)
+
+Os mods não ficam neste repositório: arquivos `.vpk` estão no `.gitignore`
+porque passam do limite de tamanho do GitHub. Baixe-os em
+[Performance Improving Mods](https://github.com/Sqooky/OptimizationLock/tree/main/Performance%20Improving%20Mods)
+e copie para `steamapps/common/Deadlock/game/citadel/addons/`. A seção 6 de
+`otimizacao-deadlock.md` explica cada um.
 
 ## Avisos
 
 - Update do jogo ou "Verificar integridade" restaura o `gameinfo.gi` original e
-  apaga `addons/`. Esta pasta é o backup.
+  apaga `addons/`. Esta pasta é o backup das configs; os mods precisam ser
+  baixados de novo.
 - Os nomes `pakNN_dir.vpk` só definem a ordem de carga. Se dois mods tiverem o
   mesmo nome, renomeie um deles antes de copiar.
 - Nunca substitua o `game/citadel/pak01_dir.vpk` do jogo: mods vão só em `addons/`.
